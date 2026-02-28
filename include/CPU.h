@@ -33,6 +33,7 @@ private:
     uint8_t getR8(uint8_t reg_index) const;
     void setR8(uint8_t reg_index, uint8_t value);
     bool isFlagSet(Flag flag) const;
+    void updateFlags(bool z, bool n, bool h, bool c);
 
     // Opcode Table Helpers
     uint16_t getR16(uint8_t reg_index) const;
@@ -42,6 +43,20 @@ private:
     uint16_t getR16mem(uint8_t reg_index);
     bool checkCond(uint8_t index) const;
 
+    // ALU Helpers
+    void inst_add(uint8_t operand);
+    void inst_adc(uint8_t operand);
+    void inst_sub(uint8_t operand);
+    void inst_sbc(uint8_t operand);
+    void inst_and(uint8_t operand);
+    void inst_xor(uint8_t operand);
+    void inst_or(uint8_t operand);
+    void inst_cp(uint8_t operand);
+
+    // CPU ISA
+    uint8_t fetch();
+    void step();
+    void halt();
     // For memory access;
     Bus& bus;
 public:

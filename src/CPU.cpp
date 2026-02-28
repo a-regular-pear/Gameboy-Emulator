@@ -29,6 +29,10 @@ bool CPU::isFlagSet(Flag flag) const {
     return (F & static_cast<uint8_t>(flag)) != 0;
 }
 
+void CPU::updateFlags(bool z, bool n, bool h, bool c) {
+    F = ((z << 7) | (n << 6) | (h << 5) | (c << 4)) & 0xF0;
+}
+
 uint8_t CPU::getR8(uint8_t reg_index) const {
     switch (static_cast<Reg8>(reg_index))
     {
@@ -160,3 +164,106 @@ bool CPU::checkCond(uint8_t index) const{
     }
 }
 
+void CPU::inst_add(uint8_t operand) {
+    int result = A + operand;
+    bool z = ((result & 0xFF) == 0);
+    bool n = false;
+    bool h = ((A & 0x0F) + (operand & 0x0F)) > 0x0F;
+    bool c = result > 0xFF;
+    A = static_cast<uint8_t>(result);
+    updateFlags(z, n, h, c);
+}
+
+void CPU::inst_adc(uint8_t operand) {
+    uint8_t carry = static_cast<uint8_t>(isFlagSet(Flag::C));
+    int result = A + operand + carry;
+    bool z = ((result & 0xFF) == 0);
+    bool n = false;
+    bool h = ((A & 0x0F) + (operand & 0x0F) + carry) > 0x0F;
+    bool c = result > 0xFF;
+    A = static_cast<uint8_t>(result);
+    updateFlags(z, n, h, c);
+}
+
+void CPU::inst_sub(uint8_t operand) {
+    int result = A - operand;
+    bool z = ((result & 0xFF) == 0);
+    bool n = true;
+    bool h = (A & 0x0F) < (operand & 0x0F);
+    bool c = A < operand;
+    A = static_cast<uint8_t>(result);
+    updateFlags(z, n, h, c);
+}
+
+void CPU::inst_sbc(uint8_t operand) {
+    uint8_t carry = static_cast<uint8_t>(isFlagSet(Flag::C));
+    int result = A - operand - carry;
+    bool z = ((result & 0xFF) == 0);
+    bool n = true;
+    bool h = (A & 0x0F) < ((operand & 0x0F) + carry);
+    bool c = A < (static_cast<uint16_t>(operand) + carry);
+    A = static_cast<uint8_t>(result);
+    updateFlags(z, n, h, c);
+}
+
+void CPU::inst_and(uint8_t operand) {
+    A &= operand;
+    updateFlags(A == 0, false, true, false);
+}
+
+void CPU::inst_xor(uint8_t operand) {
+    A ^= operand;
+    updateFlags(A == 0, false, false, false);
+}
+
+void CPU::inst_or(uint8_t operand) {
+    A |= operand;
+    updateFlags(A == 0, false, false, false);
+}
+
+void CPU::inst_cp(uint8_t operand) {
+    int result = A - operand;
+    bool z = ((result & 0xFF) == 0);
+    bool n = true;
+    bool h = (A & 0x0F) < (operand & 0x0F);
+    bool c = A < operand;
+    updateFlags(z, n, h, c);
+}
+
+uint8_t CPU::fetch() {
+    return bus.read(PC++);
+}
+
+void CPU::step() {
+    uint8_t opcode = fetch();
+
+    // Block 1:
+    if((opcode & 0xC0) == 0x40) {
+        if(opcode == 0x76) {
+            // TODO Implement halt
+            halt();
+            uint8_t dest_idx = (opcode >> 3) & 0x07;
+            uint8_t src_idx = opcode & 0x07;
+            setR8(dest_idx, getR8(src_idx));
+        }
+
+    }
+
+    // Block 2:
+    if((opcode & 0xC0) == 0x80) {
+        uint8_t src_idx = opcode & 0x07;
+        uint8_t operand = getR8(src_idx);
+        uint8_t operation = (opcode & 0x38) >> 3;
+        switch (operation) {
+        case 0: inst_add(operand); break;
+        case 1: inst_adc(operand); break;
+        case 2: inst_sub(operand); break;
+        case 3: inst_sbc(operand); break;
+        case 4: inst_and(operand); break;
+        case 5: inst_xor(operand); break;
+        case 6: inst_or(operand);  break;
+        case 7: inst_cp(operand);  break;
+        default: break;
+    }
+    }
+}
