@@ -242,10 +242,11 @@ void CPU::step() {
         if(opcode == 0x76) {
             // TODO Implement halt
             halt();
-            uint8_t dest_idx = (opcode >> 3) & 0x07;
-            uint8_t src_idx = opcode & 0x07;
-            setR8(dest_idx, getR8(src_idx));
+            return;
         }
+        uint8_t dest_idx = (opcode >> 3) & 0x07;
+        uint8_t src_idx = opcode & 0x07;
+        setR8(dest_idx, getR8(src_idx));
 
     }
 
