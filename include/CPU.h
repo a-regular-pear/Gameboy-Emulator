@@ -16,6 +16,8 @@ private:
     uint8_t D, E;
     uint8_t H, L;
     uint16_t SP, PC;
+    
+    bool IME;
 
     // 16-bit Register Pairs
     uint16_t getAF() const;
@@ -26,10 +28,6 @@ private:
     void setDE(uint16_t value);
     uint16_t getHL() const;
     void setHL(uint16_t value);
-    uint16_t getSP() const;
-    void setSP(uint16_t value);
-    uint16_t getPC() const;
-    void setPC(uint16_t value);
     uint8_t getR8(uint8_t reg_index) const;
     void setR8(uint8_t reg_index, uint8_t value);
     bool isFlagSet(Flag flag) const;
@@ -52,9 +50,12 @@ private:
     void inst_xor(uint8_t operand);
     void inst_or(uint8_t operand);
     void inst_cp(uint8_t operand);
+    void pushStack(uint16_t value);
+    uint16_t popStack();
 
     // CPU ISA
-    uint8_t fetch();
+    uint8_t fetch8();
+    uint16_t fetch16();
     void step();
     void halt();
     // For memory access;
