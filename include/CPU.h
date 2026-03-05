@@ -19,15 +19,6 @@ private:
     
     bool IME;
 
-    // 16-bit Register Pairs
-    uint16_t getAF() const;
-    void setAF(uint16_t value);
-    uint16_t getBC() const;
-    void setBC(uint16_t value);
-    uint16_t getDE() const;
-    void setDE(uint16_t value);
-    uint16_t getHL() const;
-    void setHL(uint16_t value);
     uint8_t getR8(uint8_t reg_index) const;
     void setR8(uint8_t reg_index, uint8_t value);
     bool isFlagSet(Flag flag) const;
@@ -60,7 +51,6 @@ private:
     // CPU ISA
     uint8_t fetch8();
     uint16_t fetch16();
-    void step();
     void halt();
     void stop();
 
@@ -68,6 +58,23 @@ private:
     Bus& bus;
 public:
     CPU(Bus& b);
+
+    // Execution
+    void step();
+
+    // 16-bit Register Pairs
+    uint16_t getAF() const;
+    void setAF(uint16_t value);
+    uint16_t getBC() const;
+    void setBC(uint16_t value);
+    uint16_t getDE() const;
+    void setDE(uint16_t value);
+    uint16_t getHL() const;
+    void setHL(uint16_t value);
+    uint16_t getSP() const;
+    void setSP(uint16_t value);
+    uint16_t getPC() const;
+    void setPC(uint16_t value);
 };
 
 

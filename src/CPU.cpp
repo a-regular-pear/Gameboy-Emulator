@@ -19,6 +19,13 @@ void CPU::setDE(uint16_t value) {D = (value >> 8) & 0xFF; E = value & 0xFF; }
 uint16_t CPU::getHL() const { return (static_cast<uint16_t>(H) << 8) | L; }
 void CPU::setHL(uint16_t value) {H = (value >> 8) & 0xFF; L = value & 0xFF; }
 
+uint16_t CPU::getSP() const { return SP; }
+void CPU::setSP(uint16_t value) { SP = value; }
+
+uint16_t CPU::getPC() const { return PC; }
+void CPU::setPC(uint16_t value) { PC = value; }
+
+
 bool CPU::isFlagSet(Flag flag) const {
     return (F & static_cast<uint8_t>(flag)) != 0;
 }
@@ -617,11 +624,13 @@ void CPU::step() {
                     return;
                 }
                 case 7:
+                {
                     uint8_t LSB = operand & 0x01;
                     uint8_t result = (operand >> 1);
                     setR8(src_idx, result);
                     updateFlags(result == 0, false,false, LSB == 1);
                     return; 
+                }
                 default:
                     return;
                 }
@@ -658,4 +667,11 @@ void CPU::step() {
 
     }
 
+}
+void CPU::halt() {
+    // TODO
+}
+
+void CPU::stop() {
+    // TODO
 }
