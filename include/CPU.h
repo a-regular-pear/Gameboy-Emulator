@@ -52,12 +52,18 @@ private:
     void inst_cp(uint8_t operand);
     void pushStack(uint16_t value);
     uint16_t popStack();
+    uint8_t inst_rlc(uint8_t operand, bool is_cb_prefix);
+    uint8_t inst_rrc(uint8_t operand, bool is_cb_prefix);
+    uint8_t inst_rl(uint8_t operand, bool is_cb_prefix);
+    uint8_t inst_rr(uint8_t operand, bool is_cb_prefix);
 
     // CPU ISA
     uint8_t fetch8();
     uint16_t fetch16();
     void step();
     void halt();
+    void stop();
+
     // For memory access;
     Bus& bus;
 public:

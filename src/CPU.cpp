@@ -159,7 +159,7 @@ bool CPU::checkCond(uint8_t index) const{
 }
 
 void CPU::inst_add(uint8_t operand) {
-    int result = A + operand;
+    uint32_t result = A + operand;
     bool z = ((result & 0xFF) == 0);
     bool n = false;
     bool h = ((A & 0x0F) + (operand & 0x0F)) > 0x0F;
@@ -170,7 +170,7 @@ void CPU::inst_add(uint8_t operand) {
 
 void CPU::inst_adc(uint8_t operand) {
     uint8_t carry = static_cast<uint8_t>(isFlagSet(Flag::C));
-    int result = A + operand + carry;
+    uint32_t result = A + operand + carry;
     bool z = ((result & 0xFF) == 0);
     bool n = false;
     bool h = ((A & 0x0F) + (operand & 0x0F) + carry) > 0x0F;
@@ -180,7 +180,7 @@ void CPU::inst_adc(uint8_t operand) {
 }
 
 void CPU::inst_sub(uint8_t operand) {
-    int result = A - operand;
+    uint32_t result = A - operand;
     bool z = ((result & 0xFF) == 0);
     bool n = true;
     bool h = (A & 0x0F) < (operand & 0x0F);
@@ -191,7 +191,7 @@ void CPU::inst_sub(uint8_t operand) {
 
 void CPU::inst_sbc(uint8_t operand) {
     uint8_t carry = static_cast<uint8_t>(isFlagSet(Flag::C));
-    int result = A - operand - carry;
+    uint32_t result = A - operand - carry;
     bool z = ((result & 0xFF) == 0);
     bool n = true;
     bool h = (A & 0x0F) < ((operand & 0x0F) + carry);
@@ -216,7 +216,7 @@ void CPU::inst_or(uint8_t operand) {
 }
 
 void CPU::inst_cp(uint8_t operand) {
-    int result = A - operand;
+    uint32_t result = A - operand;
     bool z = ((result & 0xFF) == 0);
     bool n = true;
     bool h = (A & 0x0F) < (operand & 0x0F);
@@ -236,6 +236,40 @@ uint16_t CPU::popStack() {
     return ((static_cast<uint16_t>(high) << 8) | low);
 }
 
+uint8_t CPU::inst_rlc(uint8_t operand, bool is_cb_prefix) {
+    uint8_t msb = operand >> 7;
+    uint8_t result = (operand << 1) | msb;
+    bool z = is_cb_prefix ? (result == 0) : false;
+    updateFlags(z, false, false, msb == 1);
+    return result;
+}
+
+uint8_t CPU::inst_rrc(uint8_t operand, bool is_cb_prefix) {
+    uint8_t lsb = operand & 0x01;
+    uint8_t result = (operand >> 1) | (lsb << 7);
+    bool z = is_cb_prefix ? (result == 0) : false;
+    updateFlags(z, false, false, lsb == 1);
+    return result;
+}
+
+uint8_t CPU::inst_rl(uint8_t operand, bool is_cb_prefix) {
+    uint8_t msb = operand >> 7;
+    uint8_t carry = isFlagSet(Flag::C) ? 1 : 0;
+    uint8_t result = (operand << 1) | carry;
+    bool z = is_cb_prefix ? (result == 0) : false;
+    updateFlags(z, false, false, msb == 1);
+    return result;
+}
+
+uint8_t CPU::inst_rr(uint8_t operand, bool is_cb_prefix) {
+    uint8_t lsb = operand & 0x01;
+    uint8_t carry = isFlagSet(Flag::C) ? 1 : 0;
+    uint8_t result = (operand >> 1) | (carry << 7);
+    bool z = is_cb_prefix ? (result == 0) : false;
+    updateFlags(z, false, false, lsb == 1);
+    return result;
+}
+
 uint8_t CPU::fetch8() {
     return bus.read(PC++);
 }
@@ -248,7 +282,148 @@ uint16_t CPU::fetch16() {
 
 void CPU::step() {
     uint8_t opcode = fetch8();
+    
+    // Block 0:
+    if((opcode & 0xC0) == 0x00) {
+        //ld
+        if((opcode & 0xCF) == 0x01) {
+            uint8_t dest_idx = (opcode >> 4) & 0x03;
+            uint16_t imm16 = fetch16(); 
+            setR16(dest_idx, imm16);
+            return;
+        }
+        if((opcode & 0xCF) == 0x02) {
+            uint8_t dest_idx = (opcode >> 4) & 0x03;
+            bus.write(getR16mem(dest_idx), A);
+            return;
+        }
+        if((opcode & 0xCF) == 0x0A) {
+            uint8_t src_idx = (opcode >> 4) & 0x03;
+            A = bus.read(getR16mem(src_idx));
+            return;
+        }
+        if((opcode & 0xC7) == 0x06) {
+            uint8_t dest_idx = (opcode >> 3) & 0x07;
+            uint8_t imm8 = fetch8();
+            setR8(dest_idx,imm8);
+            return;
+        }
 
+        // 16bit arithmetic
+        if((opcode & 0xCF) == 0x03) {
+            uint8_t src_idx = (opcode >> 4) & 0x03;
+            uint16_t operand = getR16(src_idx);
+            setR16(src_idx, operand + 1);
+            return;
+        }
+        if((opcode & 0xCF) == 0x0B) {
+            uint8_t src_idx = (opcode >> 4) & 0x03;
+            uint16_t operand = getR16(src_idx);
+            setR16(src_idx, operand - 1);
+            return;
+        }
+        if((opcode & 0xCF) == 0x09) {
+                uint8_t src_idx = (opcode >> 4) & 0x03;
+                uint16_t hl = getHL();
+                uint16_t operand = getR16(src_idx);
+                uint32_t result = hl + operand;
+                
+                setHL(result & 0xFFFF);
+                
+                bool h = ((hl & 0x0FFF) + (operand & 0x0FFF)) > 0x0FFF;
+                bool c = result > 0xFFFF;
+                updateFlags(isFlagSet(Flag::Z), false, h, c);
+                return;
+        }
+
+        // 8bit arithmetic
+        if((opcode & 0xC7) == 0x04) {
+            uint8_t dest_idx = (opcode >> 3) & 0x07;
+            uint8_t operand = getR8(dest_idx);
+            uint8_t result = operand + 1;
+            setR8(dest_idx,result);
+            updateFlags(result == 0, false, (result & 0x0F) == 0x00, isFlagSet(Flag::C));
+            return;
+        }
+        if((opcode & 0xC7) == 0x05) {
+            uint8_t dest_idx = (opcode >> 3) & 0x07;
+            uint8_t operand = getR8(dest_idx);
+            uint8_t result = operand - 1;
+            setR8(dest_idx,result);
+            updateFlags(result == 0, true, (result & 0x0F) == 0x0F, isFlagSet(Flag::C));
+            return;
+        }
+
+        //jump
+        if((opcode & 0xE7) == 0x20) {
+            uint8_t cond = (opcode >> 3) & 0x03;
+            int8_t offset = static_cast<int8_t>(fetch8());
+            if(checkCond(cond)) {
+                PC += offset;
+            }
+            return;
+        }
+
+        switch (opcode)
+        {
+        //nop
+        case 0x00:
+        {
+            return;
+        }
+        //ld [imm16], sp
+        case 0x08:
+        {
+            uint16_t imm16 = fetch16();
+            bus.write(imm16, SP & 0xFF);
+            bus.write(imm16 + 1,  SP >> 8);
+            return;
+        }
+        //jr imm8
+        case 0x18:
+        {
+            int8_t offset = static_cast<int8_t>(fetch8());
+            PC += offset;
+            return;
+        }
+        //bit shift
+        case 0x07: A = inst_rlc(A, false); return; 
+        case 0x0F: A = inst_rrc(A, false); return; 
+        case 0x17: A = inst_rl(A, false);  return; 
+        case 0x1F: A = inst_rr(A, false);  return; 
+        case 0x27:
+        {
+            uint8_t adjustment = 0;
+            bool carry = isFlagSet(Flag::C);
+            if(isFlagSet(Flag::N)) {
+                adjustment = isFlagSet(Flag::H) ? (adjustment + 0x06) : adjustment;
+                adjustment = carry ? (adjustment + 0x60) : adjustment;
+                A -= adjustment;
+            } else {
+                adjustment = (isFlagSet(Flag::H) || (A & 0x0F) > 0x09) ? (adjustment + 0x06) : adjustment;
+                if(carry || A > 0x99) {
+                    carry = true;
+                    adjustment += 0x60;
+                }
+                A += adjustment;
+            }
+            updateFlags(A == 0, isFlagSet(Flag::N), false, carry);
+            return;
+        }
+        case 0x2F:
+        {
+            A = ~A;
+            updateFlags(isFlagSet(Flag::Z),true,true,isFlagSet(Flag::C));
+            return;
+        }   
+        case 0x37: updateFlags(isFlagSet(Flag::Z),false,false,true); return;
+        case 0x3F: updateFlags(isFlagSet(Flag::Z),false,false,!isFlagSet(Flag::C)); return;
+        // TODO Implement stop
+        case 0x10: stop();return;
+        default:
+            return;
+        }
+    }
     // Block 1:
     if((opcode & 0xC0) == 0x40) {
         if(opcode == 0x76) {
@@ -411,38 +586,10 @@ void CPU::step() {
                 uint8_t operation = (opcode2 & 0x38) >> 3;
                 switch (operation)
                 {
-                case 0:
-                {
-                    uint8_t MSB = operand >> 7;
-                    uint8_t result = (operand << 1) | MSB;
-                    setR8(src_idx, result);
-                    updateFlags(result == 0, false,false, MSB == 1);
-                    return;
-                }
-                case 1:
-                {
-                    uint8_t LSB = operand & 0x01;
-                    uint8_t result = (operand >> 1) | (LSB << 7);
-                    setR8(src_idx, result);
-                    updateFlags(result == 0, false,false, LSB == 1);
-                    return;
-                }
-                case 2:
-                {
-                    uint8_t MSB = operand >> 7;
-                    uint8_t result = (operand << 1) | isFlagSet(Flag::C);
-                    setR8(src_idx, result);
-                    updateFlags(result == 0, false,false, MSB == 1);
-                    return; 
-                }
-                case 3:
-                {
-                    uint8_t LSB = operand & 0x01;
-                    uint8_t result = (operand >> 1)  | (isFlagSet(Flag::C) << 7);
-                    setR8(src_idx, result);
-                    updateFlags(result == 0, false,false, LSB == 1);
-                    return;
-                }
+                case 0: setR8(src_idx, inst_rlc(operand, true)); return;
+                case 1: setR8(src_idx, inst_rrc(operand, true)); return;
+                case 2: setR8(src_idx, inst_rl(operand, true)); return;
+                case 3: setR8(src_idx, inst_rr(operand, true)); return;
                 case 4:
                 {
                     uint8_t MSB = operand >> 7;
