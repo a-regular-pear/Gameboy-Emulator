@@ -288,8 +288,60 @@ uint16_t CPU::fetch16() {
 }
 
 void CPU::step() {
-    uint8_t opcode = fetch8();
     
+    // Interrupt Handler
+    if(IME) {
+        uint8_t IF = bus.read(0xFF0F);
+        uint8_t IE = bus.read(0xFFFF);
+
+        uint8_t pending = IF & IE;
+        if (pending > 0) {
+            // VBlank
+            if(pending & 0x01) {
+                bus.write(0xFF0F, IF & 0xFE);
+                IME = false;
+                pushStack(PC);
+                PC = 0x40;
+                return;
+            } 
+            // LCD
+            else if(pending & 0x02) {
+                bus.write(0xFF0F, IF & 0xFD);
+                IME = false;
+                pushStack(PC);
+                PC = 0x48;
+                return;            
+            } 
+            // Timer
+            else if(pending & 0x04) {
+                bus.write(0xFF0F, IF & 0xFB);
+                IME = false;
+                pushStack(PC);
+                PC = 0x50; 
+                return;          
+            } 
+            // Serial
+            else if(pending & 0x08) {
+                bus.write(0xFF0F, IF & 0xF7);
+                IME = false;
+                pushStack(PC);
+                PC = 0x58; 
+                return;          
+            } 
+            // Joypad
+            else if(pending & 0x10) {
+                bus.write(0xFF0F, IF & 0xEF);
+                IME = false;
+                pushStack(PC);
+                PC = 0x60; 
+                return;          
+            } 
+        }
+
+    }
+    uint8_t opcode = fetch8();
+
+
     // Block 0:
     if((opcode & 0xC0) == 0x00) {
         //ld
