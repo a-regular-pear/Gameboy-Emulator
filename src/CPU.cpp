@@ -1,6 +1,6 @@
 #include "CPU.h"
 
-CPU::CPU(Bus& b) : A{0x01}, F{0x80}, B{0x00}, C{0x13}, D{0x00}, E{0xC1}, H{0x84}, L{0x03}, PC{0x0100}, SP{0xFFFE}, bus{b} {}
+CPU::CPU(Bus& b) : A{0x01}, F{0x80}, B{0x00}, C{0x13}, D{0x00}, E{0xC1}, H{0x84}, L{0x03}, PC{0x0100}, SP{0xFFFE}, bus{b}, isHalted{false} {}
 
 
 // AF Pair
@@ -290,12 +290,14 @@ uint16_t CPU::fetch16() {
 void CPU::step() {
     
     // Interrupt Handler
-    if(IME) {
-        uint8_t IF = bus.read(0xFF0F);
-        uint8_t IE = bus.read(0xFFFF);
+    uint8_t IF = bus.read(0xFF0F);
+    uint8_t IE = bus.read(0xFFFF);
 
-        uint8_t pending = IF & IE;
-        if (pending > 0) {
+    uint8_t pending = (IF & IE) & 0x1F;
+    if(pending > 0) {
+        isHalted = false;
+
+        if (IME) {
             // VBlank
             if(pending & 0x01) {
                 bus.write(0xFF0F, IF & 0xFE);
@@ -339,8 +341,12 @@ void CPU::step() {
         }
 
     }
-    uint8_t opcode = fetch8();
 
+    // This uses a for when step starts returning cycles
+    if(isHalted)
+        return;
+
+    uint8_t opcode = fetch8();
 
     // Block 0:
     if((opcode & 0xC0) == 0x00) {
@@ -486,8 +492,7 @@ void CPU::step() {
     // Block 1:
     if((opcode & 0xC0) == 0x40) {
         if(opcode == 0x76) {
-            // TODO Implement halt
-            halt();
+            isHalted = true;
             return;
         }
         uint8_t dest_idx = (opcode >> 3) & 0x07;
@@ -719,9 +724,6 @@ void CPU::step() {
 
     }
 
-}
-void CPU::halt() {
-    // TODO
 }
 
 void CPU::stop() {

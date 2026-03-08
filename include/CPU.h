@@ -51,7 +51,7 @@ private:
     // CPU ISA
     uint8_t fetch8();
     uint16_t fetch16();
-    void halt();
+    bool isHalted;
     void stop();
 
     // For memory access;
