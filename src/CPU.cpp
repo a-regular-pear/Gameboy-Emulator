@@ -1,6 +1,6 @@
 #include "CPU.h"
 
-CPU::CPU(Bus& b) : A{0x01}, F{0x80}, B{0x00}, C{0x13}, D{0x00}, E{0xC1}, H{0x84}, L{0x03}, PC{0x0100}, SP{0xFFFE}, bus{b}, isHalted{false} {}
+CPU::CPU(Bus& b) : A{0x01}, F{0x80}, B{0x00}, C{0x13}, D{0x00}, E{0xC1}, H{0x84}, L{0x03}, PC{0x0100}, SP{0xFFFE}, bus{b}, isHalted{false}, isStopped{false} {}
 
 
 // AF Pair
@@ -483,8 +483,35 @@ void CPU::step() {
         }   
         case 0x37: updateFlags(isFlagSet(Flag::Z),false,false,true); return;
         case 0x3F: updateFlags(isFlagSet(Flag::Z),false,false,!isFlagSet(Flag::C)); return;
-        // TODO Implement stop
-        case 0x10: stop();return;
+        case 0x10: 
+        {
+            //Check if button is pressed
+            uint8_t joyp = bus.read(0xFF00);
+            bool isPressed = (joyp & 0x0F) != 0x0F;
+            
+            if(isPressed){
+                if(pending) {
+                    return;
+                } else {
+                    PC++;
+                    isHalted = true;
+                    return;
+                }
+            } else {
+                if(pending) {
+                    isStopped = true;
+                    // TODO Reset DIV
+                    return;
+                } else {
+                    PC++;
+                    isStopped = true;
+                    // TODO Reset DIV
+                    return;
+                }
+            }
+            return;
+
+        }
         default:
             return;
         }
@@ -724,8 +751,4 @@ void CPU::step() {
 
     }
 
-}
-
-void CPU::stop() {
-    // TODO
 }

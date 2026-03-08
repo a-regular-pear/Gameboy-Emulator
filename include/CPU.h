@@ -52,7 +52,7 @@ private:
     uint8_t fetch8();
     uint16_t fetch16();
     bool isHalted;
-    void stop();
+    bool isStopped;
 
     // For memory access;
     Bus& bus;
