@@ -1,0 +1,86 @@
+#include "Bus.h"
+
+Bus::Bus(PPU& p, Cartridge* c) : wram{}, hram{}, ppu {p}, cartridge{c}, ie_register{}, io{} {}
+
+uint8_t Bus::read(uint16_t address) {
+    //ROM
+    if(address >= 0x0000 && address <= 0x7FFF) {
+        return cartridge->read(address);
+    } 
+    //VRAM
+    else if(address >= 0x8000 && address <= 0x9FFF) {
+        return ppu.read(address);
+    }
+    //ERAM
+    else if (address >= 0xA000 && address <= 0xBFFF) {
+        return cartridge->read(address);
+    }
+    //WRAM
+    else if(address >= 0xC000 && address <= 0xDFFF) {
+        return wram[address - 0xC000];
+    }
+    //Echo
+    else if(address >= 0xE000 && address <= 0xFDFF) {
+        return wram[address - 0xE000];
+    }
+    //OAM
+    else if(address >= 0xFE00 && address <= 0xFE9F) {
+        return ppu.read(address);
+    }
+    //I/O
+    else if(address >= 0xFF00 && address <= 0xFF7F) {
+        return io[address - 0xFF00];
+    }
+    //HRAM
+    else if(address >= 0xFF80 && address <= 0xFFFE) {
+        return hram[address - 0xFF80];
+    }
+    //IE
+    else if(address == 0xFFFF) {
+        return ie_register;
+    }
+    //Not used addresses
+    else {
+        return 0xFF;
+    }
+}
+
+void Bus::write(uint16_t address, uint8_t data) {
+    //ROM
+    if(address >= 0x0000 && address <= 0x7FFF) {
+        cartridge->write(address,data);
+    } 
+    //VRAM
+    else if(address >= 0x8000 && address <= 0x9FFF) {
+        ppu.write(address,data);
+    }
+    //ERAM
+    else if (address >= 0xA000 && address <= 0xBFFF) {
+        cartridge->write(address, data);
+    }
+    //WRAM
+    else if(address >= 0xC000 && address <= 0xDFFF) {
+        wram[address - 0xC000] = data;
+    }
+    //Echo
+    else if(address >= 0xE000 && address <= 0xFDFF) {
+        wram[address - 0xE000] = data;
+    }
+    //OAM
+    else if(address >= 0xFE00 && address <= 0xFE9F) {
+        ppu.write(address,data);
+    }
+    //I/O
+    else if(address >= 0xFF00 && address <= 0xFF7F) {
+        io[address - 0xFF00] = data;
+    }
+    //HRAM
+    else if(address >= 0xFF80 && address <= 0xFFFE) {
+        hram[address - 0xFF80] = data;
+    }
+    //IE
+    else if(address == 0xFFFF) {
+        ie_register = data;
+    }
+
+}

@@ -1,6 +1,6 @@
 #include "CPU.h"
 
-CPU::CPU(Bus& b) : bus{b} {}
+CPU::CPU(Bus& b) : A{0x01}, F{0x80}, B{0x00}, C{0x13}, D{0x00}, E{0xC1}, H{0x84}, L{0x03}, PC{0x0100}, SP{0xFFFE}, bus{b} {}
 
 
 // AF Pair

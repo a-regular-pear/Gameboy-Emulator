@@ -15,8 +15,11 @@ private:
     
     // Interrupt
     uint8_t ie_register;
+
+    // temporary IO registers
+    uint8_t io[0x80];
 public:
     Bus(PPU& p, Cartridge* c);    
     uint8_t read(uint16_t address);
-    void write(uint16_t address, uint8_t value);
+    void write(uint16_t address, uint8_t data);
 };
