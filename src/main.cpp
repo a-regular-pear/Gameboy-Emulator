@@ -20,7 +20,7 @@ void setup() {
         while (true);
     }
 
-    File file = SD.open("Test.gb");
+    File file = SD.open("cpu_instrs.gb");
     if (!file) {
         Serial.println("Failed to find rom");
         while (true);

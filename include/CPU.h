@@ -18,6 +18,8 @@ private:
     uint16_t SP, PC;
     
     bool IME;
+    bool enableIME;
+    bool enableIMENext;
 
     uint8_t getR8(uint8_t reg_index) const;
     void setR8(uint8_t reg_index, uint8_t value);
@@ -53,7 +55,8 @@ private:
     uint16_t fetch16();
     bool isHalted;
     bool isStopped;
-
+    bool haltBug;
+    
     // For memory access;
     Bus& bus;
 public:

@@ -1,6 +1,6 @@
 #include "CPU.h"
 
-CPU::CPU(Bus& b) : A{0x01}, F{0x80}, B{0x00}, C{0x13}, D{0x00}, E{0xC1}, H{0x84}, L{0x03}, PC{0x0100}, SP{0xFFFE}, bus{b}, isHalted{false}, isStopped{false} {}
+CPU::CPU(Bus& b) : A{0x01}, F{0x80}, B{0x00}, C{0x13}, D{0x00}, E{0xC1}, H{0x84}, L{0x03}, PC{0x0100}, SP{0xFFFE}, bus{b}, IME{false}, enableIME{false}, isHalted{false}, isStopped{false} {}
 
 
 // AF Pair
@@ -294,6 +294,15 @@ void CPU::step() {
     uint8_t IE = bus.read(0xFFFF);
 
     uint8_t pending = (IF & IE) & 0x1F;
+
+    
+    // IME is implement a cycle after EI has run
+    if(enableIME) {
+        IME = true;
+        enableIME = false;
+
+    }
+    
     if(pending > 0) {
         isHalted = false;
 
@@ -302,6 +311,7 @@ void CPU::step() {
             if(pending & 0x01) {
                 bus.write(0xFF0F, IF & 0xFE);
                 IME = false;
+                enableIME = false;
                 pushStack(PC);
                 PC = 0x40;
                 return;
@@ -310,6 +320,7 @@ void CPU::step() {
             else if(pending & 0x02) {
                 bus.write(0xFF0F, IF & 0xFD);
                 IME = false;
+                enableIME = false;
                 pushStack(PC);
                 PC = 0x48;
                 return;            
@@ -318,6 +329,7 @@ void CPU::step() {
             else if(pending & 0x04) {
                 bus.write(0xFF0F, IF & 0xFB);
                 IME = false;
+                enableIME = false;
                 pushStack(PC);
                 PC = 0x50; 
                 return;          
@@ -326,6 +338,7 @@ void CPU::step() {
             else if(pending & 0x08) {
                 bus.write(0xFF0F, IF & 0xF7);
                 IME = false;
+                enableIME = false;
                 pushStack(PC);
                 PC = 0x58; 
                 return;          
@@ -334,6 +347,7 @@ void CPU::step() {
             else if(pending & 0x10) {
                 bus.write(0xFF0F, IF & 0xEF);
                 IME = false;
+                enableIME = false;
                 pushStack(PC);
                 PC = 0x60; 
                 return;          
@@ -342,11 +356,18 @@ void CPU::step() {
 
     }
 
+
+
     // This uses a for when step starts returning cycles
     if(isHalted)
         return;
 
     uint8_t opcode = fetch8();
+
+    if (haltBug) {
+        haltBug = false;
+        PC--;
+    }
 
     // Block 0:
     if((opcode & 0xC0) == 0x00) {
@@ -519,7 +540,10 @@ void CPU::step() {
     // Block 1:
     if((opcode & 0xC0) == 0x40) {
         if(opcode == 0x76) {
-            isHalted = true;
+            if (!IME && pending)
+                haltBug = true;
+            else
+                isHalted = true;
             return;
         }
         uint8_t dest_idx = (opcode >> 3) & 0x07;
@@ -664,8 +688,17 @@ void CPU::step() {
         case 0xF9: SP = getHL(); return;
 
         // interrupts
-        case 0xF3: IME = false; return;
-        case 0xFB: IME = true; return;
+        case 0xF3: 
+        {
+            IME = false; 
+            enableIME = false;
+            return;
+        }
+        case 0xFB: 
+        {
+            enableIME = true;
+            return;
+        }
 
         // Prefix
         case 0xCB:
