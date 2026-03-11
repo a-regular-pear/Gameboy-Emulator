@@ -19,7 +19,6 @@ private:
     
     bool IME;
     bool enableIME;
-    bool enableIMENext;
 
     uint8_t getR8(uint8_t reg_index) const;
     void setR8(uint8_t reg_index, uint8_t value);

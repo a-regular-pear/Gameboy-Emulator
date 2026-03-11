@@ -3,7 +3,7 @@
 Timer::Timer() {};
 
 uint8_t Timer::read(uint16_t address) {
-    if(address == 0xFF04) static_cast<uint8_t>(div);
+    if(address == 0xFF04) return static_cast<uint8_t>(div >> 8);
     else if(address == 0xFF05) return tima;
     else if(address == 0xFF06) return tma;
     else if(address == 0xFF07) return tac;

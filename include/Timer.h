@@ -12,6 +12,6 @@ private:
 public:
     Timer(/* args */);
     uint8_t read(uint16_t address);
-    void Timer::write(uint16_t address, uint8_t value);
+    void write(uint16_t address, uint8_t value);
 };
 
