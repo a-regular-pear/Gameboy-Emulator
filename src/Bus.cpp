@@ -27,9 +27,13 @@ uint8_t Bus::read(uint16_t address) {
     else if(address >= 0xFE00 && address <= 0xFE9F) {
         return ppu.read(address);
     }
-    //I/O
-    else if(address >= 0xFF00 && address <= 0xFF7F) {
+    //I/O  except timer
+    else if((address >= 0xFF00 && address <= 0xFF03) || (address >= 0xFF0F && address <= 0xFF70)) {
         return io[address - 0xFF00];
+    }
+    //Timer
+    else if(address >= 0xFF04 && address <= 0xFF07) {
+        return timer.read(address);
     }
     //HRAM
     else if(address >= 0xFF80 && address <= 0xFFFE) {
@@ -76,7 +80,7 @@ void Bus::write(uint16_t address, uint8_t data) {
     }
     //Timer
     else if(address >= 0xFF04 && address <= 0xFF07) {
-        timer.read(address);
+        timer.write(address, data);
     }
     //HRAM
     else if(address >= 0xFF80 && address <= 0xFFFE) {

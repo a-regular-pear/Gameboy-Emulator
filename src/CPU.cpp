@@ -287,7 +287,7 @@ uint16_t CPU::fetch16() {
     return ((static_cast<uint16_t>(high) << 8) | low);
 }
 
-void CPU::step() {
+int CPU::step() {
     
     // Interrupt Handler
     uint8_t IF = bus.read(0xFF0F);
@@ -314,7 +314,7 @@ void CPU::step() {
                 enableIME = false;
                 pushStack(PC);
                 PC = 0x40;
-                return;
+                return 20;
             } 
             // LCD
             else if(pending & 0x02) {
@@ -323,7 +323,7 @@ void CPU::step() {
                 enableIME = false;
                 pushStack(PC);
                 PC = 0x48;
-                return;            
+                return 20;            
             } 
             // Timer
             else if(pending & 0x04) {
@@ -332,7 +332,7 @@ void CPU::step() {
                 enableIME = false;
                 pushStack(PC);
                 PC = 0x50; 
-                return;          
+                return 20;          
             } 
             // Serial
             else if(pending & 0x08) {
@@ -341,7 +341,7 @@ void CPU::step() {
                 enableIME = false;
                 pushStack(PC);
                 PC = 0x58; 
-                return;          
+                return 20;          
             } 
             // Joypad
             else if(pending & 0x10) {
@@ -350,7 +350,7 @@ void CPU::step() {
                 enableIME = false;
                 pushStack(PC);
                 PC = 0x60; 
-                return;          
+                return 20;          
             } 
         }
 
@@ -360,7 +360,7 @@ void CPU::step() {
 
     // This uses a for when step starts returning cycles
     if(isHalted)
-        return;
+        return 4;
 
     uint8_t opcode = fetch8();
 
@@ -376,23 +376,23 @@ void CPU::step() {
             uint8_t dest_idx = (opcode >> 4) & 0x03;
             uint16_t imm16 = fetch16(); 
             setR16(dest_idx, imm16);
-            return;
+            return 12;
         }
         if((opcode & 0xCF) == 0x02) {
             uint8_t dest_idx = (opcode >> 4) & 0x03;
             bus.write(getR16mem(dest_idx), A);
-            return;
+            return 8;
         }
         if((opcode & 0xCF) == 0x0A) {
             uint8_t src_idx = (opcode >> 4) & 0x03;
             A = bus.read(getR16mem(src_idx));
-            return;
+            return 8;
         }
         if((opcode & 0xC7) == 0x06) {
             uint8_t dest_idx = (opcode >> 3) & 0x07;
             uint8_t imm8 = fetch8();
             setR8(dest_idx,imm8);
-            return;
+            return (dest_idx == 6) ? 12 : 8;
         }
 
         // 16bit arithmetic
@@ -400,13 +400,13 @@ void CPU::step() {
             uint8_t src_idx = (opcode >> 4) & 0x03;
             uint16_t operand = getR16(src_idx);
             setR16(src_idx, operand + 1);
-            return;
+            return 8;
         }
         if((opcode & 0xCF) == 0x0B) {
             uint8_t src_idx = (opcode >> 4) & 0x03;
             uint16_t operand = getR16(src_idx);
             setR16(src_idx, operand - 1);
-            return;
+            return 8;
         }
         if((opcode & 0xCF) == 0x09) {
                 uint8_t src_idx = (opcode >> 4) & 0x03;
@@ -419,7 +419,7 @@ void CPU::step() {
                 bool h = ((hl & 0x0FFF) + (operand & 0x0FFF)) > 0x0FFF;
                 bool c = result > 0xFFFF;
                 updateFlags(isFlagSet(Flag::Z), false, h, c);
-                return;
+                return 8;
         }
 
         // 8bit arithmetic
@@ -429,7 +429,7 @@ void CPU::step() {
             uint8_t result = operand + 1;
             setR8(dest_idx,result);
             updateFlags(result == 0, false, (result & 0x0F) == 0x00, isFlagSet(Flag::C));
-            return;
+            return (dest_idx == 6) ? 12 : 4;
         }
         if((opcode & 0xC7) == 0x05) {
             uint8_t dest_idx = (opcode >> 3) & 0x07;
@@ -437,7 +437,7 @@ void CPU::step() {
             uint8_t result = operand - 1;
             setR8(dest_idx,result);
             updateFlags(result == 0, true, (result & 0x0F) == 0x0F, isFlagSet(Flag::C));
-            return;
+            return (dest_idx == 6) ? 12 : 4;
         }
 
         //jump
@@ -446,8 +446,9 @@ void CPU::step() {
             int8_t offset = static_cast<int8_t>(fetch8());
             if(checkCond(cond)) {
                 PC += offset;
+                return 12;
             }
-            return;
+            return 8;
         }
 
         switch (opcode)
@@ -455,7 +456,7 @@ void CPU::step() {
         //nop
         case 0x00:
         {
-            return;
+            return 4;
         }
         //ld [imm16], sp
         case 0x08:
@@ -463,20 +464,20 @@ void CPU::step() {
             uint16_t imm16 = fetch16();
             bus.write(imm16, SP & 0xFF);
             bus.write(imm16 + 1,  SP >> 8);
-            return;
+            return 20;
         }
         //jr imm8
         case 0x18:
         {
             int8_t offset = static_cast<int8_t>(fetch8());
             PC += offset;
-            return;
+            return 12;
         }
         //bit shift
-        case 0x07: A = inst_rlc(A, false); return; 
-        case 0x0F: A = inst_rrc(A, false); return; 
-        case 0x17: A = inst_rl(A, false);  return; 
-        case 0x1F: A = inst_rr(A, false);  return; 
+        case 0x07: A = inst_rlc(A, false); return 4; 
+        case 0x0F: A = inst_rrc(A, false); return 4; 
+        case 0x17: A = inst_rl(A, false);  return 4; 
+        case 0x1F: A = inst_rr(A, false);  return 4; 
         case 0x27:
         {
             uint8_t adjustment = 0;
@@ -494,16 +495,16 @@ void CPU::step() {
                 A += adjustment;
             }
             updateFlags(A == 0, isFlagSet(Flag::N), false, carry);
-            return;
+            return 4;
         }
         case 0x2F:
         {
             A = ~A;
             updateFlags(isFlagSet(Flag::Z),true,true,isFlagSet(Flag::C));
-            return;
+            return 4;
         }   
-        case 0x37: updateFlags(isFlagSet(Flag::Z),false,false,true); return;
-        case 0x3F: updateFlags(isFlagSet(Flag::Z),false,false,!isFlagSet(Flag::C)); return;
+        case 0x37: updateFlags(isFlagSet(Flag::Z),false,false,true); return 4 ;
+        case 0x3F: updateFlags(isFlagSet(Flag::Z),false,false,!isFlagSet(Flag::C)); return 4;
         case 0x10: 
         {
             //Check if button is pressed
@@ -512,29 +513,29 @@ void CPU::step() {
             
             if(isPressed){
                 if(pending) {
-                    return;
+                    return 4;
                 } else {
                     PC++;
                     isHalted = true;
-                    return;
+                    return 4;
                 }
             } else {
                 if(pending) {
                     isStopped = true;
-                    bus.write(0xFF04,0)
-                    return;
+                    bus.write(0xFF04,0);
+                    return 4;
                 } else {
                     PC++;
                     isStopped = true;
                     bus.write(0xFF04,0);
-                    return;
+                    return 4;
                 }
             }
-            return;
+            return 4;
 
         }
         default:
-            return;
+            return 4;
         }
     }
     // Block 1:
@@ -544,12 +545,12 @@ void CPU::step() {
                 haltBug = true;
             else
                 isHalted = true;
-            return;
+            return 4;
         }
         uint8_t dest_idx = (opcode >> 3) & 0x07;
         uint8_t src_idx = opcode & 0x07;
         setR8(dest_idx, getR8(src_idx));
-        return;
+        return (dest_idx == 6 || src_idx == 6) ? 8 : 4;
     }
 
     // Block 2:
@@ -568,7 +569,7 @@ void CPU::step() {
         case 7: inst_cp(operand);  break;
         default: break;
     }
-        return;
+        return (src_idx == 6) ? 8 : 4;
     }
 
     // Block 3:
@@ -588,7 +589,7 @@ void CPU::step() {
             case 7: inst_cp(operand);  break;
             default: break;
             }
-            return;
+            return 8;
         } 
         // pop
         if((opcode & 0xCF) == 0xC1) { 
@@ -596,22 +597,23 @@ void CPU::step() {
             uint8_t reg_idx = (opcode & 0x30) >> 4;
 
             setR16stk(reg_idx, popStack());
-            return;
+            return 12;
         } 
         // push
         if((opcode & 0xCF) == 0xC5) {
             uint8_t reg_idx = (opcode & 0x30) >> 4;
             uint16_t reg_val = getR16stk(reg_idx);
             pushStack(reg_val);
-            return;
+            return 16;
         }
         // ret cond
         if((opcode & 0xE7) == 0xC0) {
             uint8_t cond = (opcode & 0x18) >> 3;
             if(checkCond(cond)) {
                 PC = popStack();
+                return 20;
             }
-            return;
+            return 8;
         }
 
         // jp cond, imm16
@@ -621,8 +623,9 @@ void CPU::step() {
             if(checkCond(cond)) {
 
                 PC = dest;
+                return 16;
             }
-            return;
+            return 12;
         }
 
         // call cond, imm16
@@ -632,8 +635,9 @@ void CPU::step() {
             if(checkCond(cond)) {
                 pushStack(PC);
                 PC = dest;
+                return 24;
             }
-            return;
+            return 12;
         }
         
         // rst tgt3
@@ -641,30 +645,30 @@ void CPU::step() {
             uint8_t tgt3 = (opcode & 0x38);
             pushStack(PC);
             PC = tgt3;
-            return;
+            return 16;
         }
 
         switch (opcode)
         {
         // Control Flow
-        case 0xC9: PC = popStack(); return;
-        case 0xD9: PC = popStack(); IME = true; return;
-        case 0xC3: PC = fetch16(); return;
-        case 0xE9: PC = getHL(); return;
+        case 0xC9: PC = popStack(); return 16;
+        case 0xD9: PC = popStack(); IME = true; return 16;
+        case 0xC3: PC = fetch16(); return 16;
+        case 0xE9: PC = getHL(); return 4;
         case 0xCD: 
         {
             uint16_t dest = fetch16(); 
             pushStack(PC); 
             PC = dest; 
-            return;
+            return 24;
         }
         // LDH
-        case 0xE2: bus.write(0xFF00 + C,A); return;
-        case 0xE0: bus.write(0xFF00 + fetch8(),A); return;
-        case 0xEA: bus.write(fetch16(),A); return;
-        case 0xF2: A = bus.read(0xFF00 + C); return;
-        case 0xF0: A = bus.read(0xFF00 + fetch8()); return;
-        case 0xFA: A = bus.read(fetch16()); return;
+        case 0xE2: bus.write(0xFF00 + C,A); return 8;
+        case 0xE0: bus.write(0xFF00 + fetch8(),A); return 12;
+        case 0xEA: bus.write(fetch16(),A); return 16;
+        case 0xF2: A = bus.read(0xFF00 + C); return 8;
+        case 0xF0: A = bus.read(0xFF00 + fetch8()); return 12;
+        case 0xFA: A = bus.read(fetch16()); return 16;
 
          // SP instructions
         case 0xE8:
@@ -674,7 +678,7 @@ void CPU::step() {
         bool c = ((SP & 0xFF) + (static_cast<uint8_t>(offset) & 0xFF)) > 0xFF;
         SP += offset;
         updateFlags(false, false, h, c);
-        return;
+        return 16;
         }
         case 0xF8:
         {
@@ -683,21 +687,21 @@ void CPU::step() {
         bool c = ((SP & 0xFF) + (static_cast<uint8_t>(offset) & 0xFF)) > 0xFF;
         setHL(SP + offset);
         updateFlags(false, false, h, c);
-        return;
+        return 12;
         }
-        case 0xF9: SP = getHL(); return;
+        case 0xF9: SP = getHL(); return 8;
 
         // interrupts
         case 0xF3: 
         {
             IME = false; 
             enableIME = false;
-            return;
+            return 4;
         }
         case 0xFB: 
         {
             enableIME = true;
-            return;
+            return 4;
         }
 
         // Prefix
@@ -710,17 +714,17 @@ void CPU::step() {
                 uint8_t operation = (opcode2 & 0x38) >> 3;
                 switch (operation)
                 {
-                case 0: setR8(src_idx, inst_rlc(operand, true)); return;
-                case 1: setR8(src_idx, inst_rrc(operand, true)); return;
-                case 2: setR8(src_idx, inst_rl(operand, true)); return;
-                case 3: setR8(src_idx, inst_rr(operand, true)); return;
+                case 0: setR8(src_idx, inst_rlc(operand, true)); return (src_idx == 6) ? 16 : 8;
+                case 1: setR8(src_idx, inst_rrc(operand, true)); return (src_idx == 6) ? 16 : 8;
+                case 2: setR8(src_idx, inst_rl(operand, true)); return (src_idx == 6) ? 16 : 8;
+                case 3: setR8(src_idx, inst_rr(operand, true)); return (src_idx == 6) ? 16 : 8;
                 case 4:
                 {
                     uint8_t MSB = operand >> 7;
                     uint8_t result = (operand << 1);
                     setR8(src_idx, result);
                     updateFlags(result == 0, false,false, MSB == 1);
-                    return; 
+                    return (src_idx == 6) ? 16 : 8;
                 }
                 case 5:
                 {
@@ -729,7 +733,7 @@ void CPU::step() {
                     uint8_t result = (operand >> 1) | MSB;
                     setR8(src_idx, result);
                     updateFlags(result == 0, false,false, LSB == 1);
-                    return;  
+                    return (src_idx == 6) ? 16 : 8;
                 }
                 case 6:
                 {
@@ -738,7 +742,7 @@ void CPU::step() {
                     uint8_t result = (low << 4) | (high >> 4);
                     setR8(src_idx, result);
                     updateFlags(result == 0, false,false, false);
-                    return;
+                    return (src_idx == 6) ? 16 : 8;
                 }
                 case 7:
                 {
@@ -746,10 +750,10 @@ void CPU::step() {
                     uint8_t result = (operand >> 1);
                     setR8(src_idx, result);
                     updateFlags(result == 0, false,false, LSB == 1);
-                    return; 
+                    return (src_idx == 6) ? 16 : 8;
                 }
                 default:
-                    return;
+                    return 4;
                 }
             }
             if((opcode2 & 0xC0) == 0x40) {
@@ -758,7 +762,7 @@ void CPU::step() {
                 uint8_t bit = (opcode2 >> 3) & 0x07; 
                 bool isZero = !(operand & (1 << bit));
                 updateFlags(isZero, false, true, isFlagSet(Flag::C)); 
-                return;
+                return (src_idx == 6) ? 12 : 8;
 
             }
             if((opcode2 & 0xC0) == 0x80) {
@@ -766,22 +770,22 @@ void CPU::step() {
                 uint8_t operand = getR8(src_idx);
                 uint8_t bit = (opcode2 >> 3) & 0x07; 
                 setR8(src_idx, operand & ~(1 << bit));
-                return;
+                return (src_idx == 6) ? 16 : 8;
             }
             if((opcode2 & 0xC0) == 0xC0) {
                 uint8_t src_idx = opcode2 & 0x07;
                 uint8_t operand = getR8(src_idx);
                 uint8_t bit = (opcode2 >> 3) & 0x07; 
                 setR8(src_idx, operand | (1 << bit));
-                return;
+                return (src_idx == 6) ? 16 : 8;
             } 
             
-            return;
+            return 4;
         }
         default:
-            return;
+            return 4;
         }
 
     }
-
+    return 4;
 }

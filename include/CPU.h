@@ -63,7 +63,7 @@ public:
     CPU(Bus& b);
 
     // Execution
-    void step();
+    int step();
 
     // 16-bit Register Pairs
     uint16_t getAF() const;

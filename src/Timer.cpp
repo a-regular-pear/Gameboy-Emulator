@@ -1,5 +1,7 @@
 #include <Timer.h>
 
+Timer::Timer() {};
+
 uint8_t Timer::read(uint16_t address) {
     if(address == 0xFF04) static_cast<uint8_t>(div);
     else if(address == 0xFF05) return tima;

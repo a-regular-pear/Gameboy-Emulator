@@ -9,7 +9,8 @@
 
 PPU ppu;
 Cartridge cartridge;
-Bus bus(ppu, &cartridge);
+Timer timer;
+Bus bus(ppu, &cartridge, timer);
 CPU cpu(bus);
 
 void setup() {
