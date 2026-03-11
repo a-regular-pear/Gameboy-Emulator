@@ -521,12 +521,12 @@ void CPU::step() {
             } else {
                 if(pending) {
                     isStopped = true;
-                    // TODO Reset DIV
+                    bus.write(0xFF04,0)
                     return;
                 } else {
                     PC++;
                     isStopped = true;
-                    // TODO Reset DIV
+                    bus.write(0xFF04,0);
                     return;
                 }
             }

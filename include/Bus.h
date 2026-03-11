@@ -2,6 +2,7 @@
 #include <cstdint>
 #include "Cartridge.h"
 #include "PPU.h"
+#include "Timer.h"
 
 class Bus {
 private:
@@ -18,8 +19,9 @@ private:
 
     // temporary IO registers
     uint8_t io[0x80];
+    Timer& timer;
 public:
-    Bus(PPU& p, Cartridge* c);    
+    Bus(PPU& p, Cartridge* c,Timer& timer);    
     uint8_t read(uint16_t address);
     void write(uint16_t address, uint8_t data);
 };

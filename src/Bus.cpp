@@ -1,6 +1,6 @@
 #include "Bus.h"
 
-Bus::Bus(PPU& p, Cartridge* c) : wram{}, hram{}, ppu {p}, cartridge{c}, ie_register{}, io{} {}
+Bus::Bus(PPU& p, Cartridge* c, Timer& t) : wram{}, hram{}, ppu{p}, cartridge{c}, ie_register{}, io{}, timer{t} {}
 
 uint8_t Bus::read(uint16_t address) {
     //ROM
@@ -70,9 +70,13 @@ void Bus::write(uint16_t address, uint8_t data) {
     else if(address >= 0xFE00 && address <= 0xFE9F) {
         ppu.write(address,data);
     }
-    //I/O
-    else if(address >= 0xFF00 && address <= 0xFF7F) {
+    //I/O except timer
+    else if((address >= 0xFF00 && address <= 0xFF03) || (address >= 0xFF0F && address <= 0xFF70)) {
         io[address - 0xFF00] = data;
+    }
+    //Timer
+    else if(address >= 0xFF04 && address <= 0xFF07) {
+        timer.read(address);
     }
     //HRAM
     else if(address >= 0xFF80 && address <= 0xFFFE) {
