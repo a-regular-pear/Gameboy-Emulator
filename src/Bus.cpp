@@ -1,4 +1,5 @@
 #include "Bus.h"
+#include "Timer.h"
 
 Bus::Bus(PPU& p, Cartridge* c, Timer& t) : wram{}, hram{}, ppu{p}, cartridge{c}, ie_register{}, io{}, timer{t} {}
 
@@ -29,6 +30,9 @@ uint8_t Bus::read(uint16_t address) {
     }
     //I/O  except timer
     else if((address >= 0xFF00 && address <= 0xFF03) || (address >= 0xFF0F && address <= 0xFF70)) {
+        if (address == 0xFF0F) {
+            return io[0x0F] | 0xE0; // The top 3 bits of IF always read as 1
+        }
         return io[address - 0xFF00];
     }
     //Timer
@@ -91,4 +95,8 @@ void Bus::write(uint16_t address, uint8_t data) {
         ie_register = data;
     }
 
+}
+
+void Bus::requestInterrupt(uint8_t interrupt) {
+    io[0x0F] |= (1 << interrupt);
 }

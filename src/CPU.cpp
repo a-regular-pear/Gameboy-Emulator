@@ -1,6 +1,6 @@
 #include "CPU.h"
 
-CPU::CPU(Bus& b) : A{0x01}, F{0x80}, B{0x00}, C{0x13}, D{0x00}, E{0xC1}, H{0x84}, L{0x03}, SP{0xFFFE}, PC{0x0100}, IME{false}, enableIME{false}, isHalted{false}, isStopped{false}, haltBug{false}, bus{b}  {}
+CPU::CPU(Bus& b) : A{0x01}, F{0x80}, B{0x00}, C{0x13}, D{0x00}, E{0xC1}, H{0x84}, L{0x03}, SP{0xFFFE}, PC{0x0100}, IME{false}, imeDelay{0}, isHalted{false}, isStopped{false}, haltBug{false}, bus{b}  {}
 
 
 // AF Pair
@@ -297,10 +297,11 @@ int CPU::step() {
 
     
     // IME is implement a cycle after EI has run
-    if(enableIME) {
-        IME = true;
-        enableIME = false;
-
+    if (imeDelay > 0) {
+        imeDelay--;
+        if (imeDelay == 0) {
+            IME = true;
+        }
     }
     
     if(pending > 0) {
@@ -311,7 +312,7 @@ int CPU::step() {
             if(pending & 0x01) {
                 bus.write(0xFF0F, IF & 0xFE);
                 IME = false;
-                enableIME = false;
+                imeDelay = 0;
                 pushStack(PC);
                 PC = 0x40;
                 return 20;
@@ -320,7 +321,7 @@ int CPU::step() {
             else if(pending & 0x02) {
                 bus.write(0xFF0F, IF & 0xFD);
                 IME = false;
-                enableIME = false;
+                imeDelay = 0;
                 pushStack(PC);
                 PC = 0x48;
                 return 20;            
@@ -329,7 +330,7 @@ int CPU::step() {
             else if(pending & 0x04) {
                 bus.write(0xFF0F, IF & 0xFB);
                 IME = false;
-                enableIME = false;
+                imeDelay = 0;
                 pushStack(PC);
                 PC = 0x50; 
                 return 20;          
@@ -338,7 +339,7 @@ int CPU::step() {
             else if(pending & 0x08) {
                 bus.write(0xFF0F, IF & 0xF7);
                 IME = false;
-                enableIME = false;
+                imeDelay = 0;
                 pushStack(PC);
                 PC = 0x58; 
                 return 20;          
@@ -347,7 +348,7 @@ int CPU::step() {
             else if(pending & 0x10) {
                 bus.write(0xFF0F, IF & 0xEF);
                 IME = false;
-                enableIME = false;
+                imeDelay = 0;
                 pushStack(PC);
                 PC = 0x60; 
                 return 20;          
@@ -507,31 +508,37 @@ int CPU::step() {
         case 0x3F: updateFlags(isFlagSet(Flag::Z),false,false,!isFlagSet(Flag::C)); return 4;
         case 0x10: 
         {
-            //Check if button is pressed
-            uint8_t joyp = bus.read(0xFF00);
-            bool isPressed = (joyp & 0x0F) != 0x0F;
-            
-            if(isPressed){
-                if(pending) {
-                    return 4;
-                } else {
-                    PC++;
-                    isHalted = true;
-                    return 4;
-                }
-            } else {
-                if(pending) {
-                    isStopped = true;
-                    bus.write(0xFF04,0);
-                    return 4;
-                } else {
-                    PC++;
-                    isStopped = true;
-                    bus.write(0xFF04,0);
-                    return 4;
-                }
-            }
+
+            fetch8();
             return 4;
+
+            // This stalls the program it will be updated when MBC is added
+
+            //Check if button is pressed
+            // uint8_t joyp = bus.read(0xFF00);
+            // bool isPressed = (joyp & 0x0F) != 0x0F;
+            
+            // if(isPressed){
+            //     if(pending) {
+            //         return 4;
+            //     } else {
+            //         PC++;
+            //         isHalted = true;
+            //         return 4;
+            //     }
+            // } else {
+            //     if(pending) {
+            //         isStopped = true;
+            //         bus.write(0xFF04,0);
+            //         return 4;
+            //     } else {
+            //         PC++;
+            //         isStopped = true;
+            //         bus.write(0xFF04,0);
+            //         return 4;
+            //     }
+            // }
+            // return 4;
 
         }
         default:
@@ -695,12 +702,12 @@ int CPU::step() {
         case 0xF3: 
         {
             IME = false; 
-            enableIME = false;
+            imeDelay = 0;
             return 4;
         }
         case 0xFB: 
         {
-            enableIME = true;
+            imeDelay = 2;
             return 4;
         }
 

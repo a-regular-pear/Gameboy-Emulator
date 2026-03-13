@@ -14,6 +14,7 @@ Bus bus(ppu, &cartridge, timer);
 CPU cpu(bus);
 
 void setup() {
+    timer.setBus(&bus);
     Serial.begin(115200);
 
     if (!SD.begin(BUILTIN_SDCARD)) {
@@ -41,8 +42,8 @@ void setup() {
 }
 
 void loop() {
-    cpu.step();
-
+    int cycles = cpu.step();
+    timer.step(cycles);
     if (bus.read(0xFF02) == 0x81) {
         char c = static_cast<char>(bus.read(0xFF01));
         Serial.print(c);

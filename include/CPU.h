@@ -18,7 +18,7 @@ private:
     uint16_t SP, PC;
     
     bool IME;
-    bool enableIME;
+    int imeDelay = 0;
 
     uint8_t getR8(uint8_t reg_index) const;
     void setR8(uint8_t reg_index, uint8_t value);
