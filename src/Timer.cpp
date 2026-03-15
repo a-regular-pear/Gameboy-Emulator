@@ -2,12 +2,12 @@
 #include "Bus.h"
 
 Timer::Timer() :
-div(0),
-tima(0),
-tma(0),
-tac(0),
-tima_countdown(1024),
-bus(nullptr)
+bus{nullptr},
+div{0},
+tima{0},
+tima_countdown{1024},
+tma{0},
+tac{0}
 {}
 
 uint8_t Timer::read(uint16_t address) {
