@@ -1,7 +1,7 @@
 #include "PPU.h"
-
-PPU::PPU(Bus* b) : 
-    bus{b}, 
+#include "Bus.h"
+PPU::PPU() : 
+    bus{nullptr}, 
     vram{}, 
     oam{}, 
     dotLineCounter{0}, 
@@ -11,7 +11,8 @@ PPU::PPU(Bus* b) :
     ly{0}, lyc{0}, 
     bgp{0xFC}, obp0{0xFF}, obp1{0xFF}, 
     wy{0}, wx{0}, 
-    lastSignal{false} 
+    lastSignal{false} ,
+    frameReady{false}
 {}
 
 
@@ -47,6 +48,10 @@ void PPU::write(uint16_t address,uint8_t data) {
     if(address >= 0x8000 && address <= 0x9FFF) 
     {
         vram[address - 0x8000] = data;
+        static int count = 0;
+        if (count < 100) {
+            count++;
+        }
     }
     else if(address >= 0xFE00 && address <= 0xFE9F) 
     {
@@ -94,14 +99,19 @@ void PPU::step(int cycles) {
     dotLineCounter += cycles;
     if(dotLineCounter >= 456) {
         dotLineCounter -= 456;
-        ly++
+
+        if (ly < 144) {
+            renderScanline();
+        }
+        
+        ly++;
 
         compareLYC();
         if(ly == 144) {
+            frameReady = true;
             bus->requestInterrupt(0);
         } else if(ly > 153) {
             ly = 0;
-            return;
         }
     }
 
@@ -118,14 +128,15 @@ void PPU::step(int cycles) {
 
 }
 
-void PPU::updateMode(uint8_t mode) {
+bool PPU::updateMode(uint8_t mode) {
     //Check if mode has changed
     uint8_t currentMode = stat & 0x03;
-    if(currentMode == mode) return;
+    if(currentMode == mode) return false;
 
     stat = (stat & 0xFC) | (mode & 0x03);
 
     updateInterrupts();
+    return true;
 }
 
 void PPU::compareLYC() {
@@ -148,3 +159,52 @@ void PPU::updateInterrupts() {
     if(currentSignal && ! lastSignal) bus->requestInterrupt(1);
     lastSignal = currentSignal;
 }
+
+PPU::Color PPU::mapIdToRGB565(uint8_t colorId) {
+    uint8_t colorValue = (bgp >> (colorId << 1)) & 0x03;
+    switch (colorValue)
+    {
+    case 0: return Color::white;
+    case 1: return Color::lightGray;
+    case 2: return Color::darkGray;
+    case 3: return Color::black;
+    default: return Color::white;
+    }
+
+}
+
+void PPU::renderScanline() {
+
+    uint16_t mapBase = (lcdc & (1 << 3)) ? 0x1C00 : 0x1800;
+    uint16_t baseAdress = (lcdc & (1 << 4)) ? 0 : 0x1000;
+    uint16_t tileY = ((ly + scy) & 0xFF) >> 3;
+    uint8_t lineInTile = (ly + scy) & 0x07;
+
+    for(int x = 0; x < 160; x++) {
+        uint16_t tileX = ((x + scx) & 0xFF) >> 3;
+        uint16_t mapAddress = mapBase + (tileY << 5) + tileX;
+        uint8_t tileId = vram[mapAddress];
+
+        int16_t tileOffset = (lcdc & (1 <<4)) ? 
+            static_cast<uint16_t>(tileId) << 4 : 
+            static_cast<int16_t>(static_cast<int8_t>(tileId)) << 4;
+
+        uint16_t tileAddress = baseAdress + tileOffset + (lineInTile << 1);
+
+        uint8_t data1 = vram[tileAddress];
+        uint8_t data2 = vram[tileAddress + 1];
+
+        uint8_t bitPosition = 7 - ((x + scx) & 0x07); 
+        uint8_t high = (data2 >> bitPosition) &0x01;
+        uint8_t low = (data1 >> bitPosition) &0x01;
+        uint8_t colorId = (high << 1) | low;
+        Color color = mapIdToRGB565(colorId);
+
+        frameBuffer[ly * 160 + x] = static_cast<uint16_t>(color);
+    }
+}
+
+void PPU::setBus(Bus* b) {
+    this->bus = b;
+}
+

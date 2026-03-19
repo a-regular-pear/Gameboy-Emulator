@@ -1,6 +1,6 @@
 #include "Cartridge.h"
 
-Cartridge::Cartridge() : rom{}, romBank0{nullptr}, romBankn{nullptr}, eram{}, eramBankn{nullptr}, 
+Cartridge::Cartridge() : romData{nullptr},romSize{}, romBank0{nullptr}, romBankn{nullptr}, eram{}, eramBankn{nullptr}, 
                          hasRam{false}, ramEnabled{false}, hasBatery{false}, mbcMode{0}, 
                          bankReg1{1}, bankReg2{0}, mbc{MBC::MBC0} {}
 uint8_t Cartridge::read(uint16_t address) {
@@ -53,23 +53,24 @@ void Cartridge::write(uint16_t address, uint8_t data) {
 
 
 }
-
-bool Cartridge::load_rom(const std::vector<uint8_t>& rom_data) {
-    //A Gameboy rom must be than 32 KiB or larger depending on mbc
-    if(rom_data.size() < 0x8000) {
+bool Cartridge::load_rom(const uint8_t* data, size_t size) {
+    // A Gameboy rom must be 32 KiB or larger depending on mbc
+    if(size < 0x8000) {
         return false;
     } 
-    rom = rom_data;
+    
+    romData = data;
+    romSize = size;
 
-    //Initialize banks
-    romBank0 = rom.data();
-    romBankn = rom.data() + 0x4000;
+    // Initialize banks
+    romBank0 = romData;
+    romBankn = romData + 0x4000;
 
-    //Reset mode
+    // Reset mode
     mbcMode = 0;
 
     // MBC1
-    uint8_t mbcType = rom_data[0x147];
+    uint8_t mbcType = romData[0x147];
 
     switch (mbcType)
     {
@@ -87,7 +88,7 @@ bool Cartridge::load_rom(const std::vector<uint8_t>& rom_data) {
         break;
     }
 
-    uint8_t ramSizeCode = rom_data[0x149];
+    uint8_t ramSizeCode = romData[0x149];
     uint32_t ramSize = 0;
     switch(ramSizeCode) {
         case 0x02: ramSize = 8192; break;    // 8KB
@@ -109,17 +110,17 @@ void Cartridge::updateOffsets() {
     // the multiplication with 0x4000 is because everybank is 16Kib
     uint32_t romOffsetN = fullRomBank * 0x4000;
     
-    if (romOffsetN < rom.size()) {
-        romBankn = rom.data() + romOffsetN;
+    if (romOffsetN < romSize) {
+        romBankn = romData + romOffsetN;
     }
 
-    //romBank0 is only affected in mode 1
+    // romBank0 is only affected in mode 1
     if(mbcMode == 0) {
-        romBank0 = rom.data();
+        romBank0 = romData;
     } else if (mbcMode == 1) {
         uint32_t romOffset0 = (bankReg2 << 5) * 0x4000;
-        if (romOffset0 < rom.size()) {
-            romBank0 = rom.data() + romOffset0;
+        if (romOffset0 < romSize) {
+            romBank0 = romData + romOffset0;
         }
     }
 

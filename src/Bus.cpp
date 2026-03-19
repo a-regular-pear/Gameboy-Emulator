@@ -30,6 +30,7 @@ uint8_t Bus::read(uint16_t address) {
     }
     //I/O  except timer and ppu reg
     else if((address >= 0xFF00 && address <= 0xFF03) || (address >= 0xFF0F && address <= 0xFF37) || ((address >= 0xFF4C && address <= 0xFF7F))) {
+        if (address == 0xFF00) return 0xFF; // Προσωρινό fix: Κανένα κουμπί πατημένο
         if (address == 0xFF0F) {
             return io[0x0F] | 0xE0; // The top 3 bits of IF always read as 1
         }

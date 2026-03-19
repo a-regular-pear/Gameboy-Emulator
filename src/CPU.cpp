@@ -289,13 +289,6 @@ uint16_t CPU::fetch16() {
 
 int CPU::step() {
     
-    // Interrupt Handler
-    uint8_t IF = bus.read(0xFF0F);
-    uint8_t IE = bus.read(0xFFFF);
-
-    uint8_t pending = (IF & IE) & 0x1F;
-
-    
     // IME is implement a cycle after EI has run
     if (imeDelay > 0) {
         imeDelay--;
@@ -303,61 +296,36 @@ int CPU::step() {
             IME = true;
         }
     }
+
+    // Interrupt Handler
+    uint8_t IF = bus.read(0xFF0F);
+    uint8_t IE = bus.read(0xFFFF);
+
+    uint8_t pending = (IF & IE) & 0x1F;
+
     
-    if(pending > 0) {
-        isHalted = false;
+    if (pending > 0) {
+        isHalted = false; 
 
         if (IME) {
-            // VBlank
-            if(pending & 0x01) {
-                bus.write(0xFF0F, IF & 0xFE);
-                IME = false;
-                imeDelay = 0;
-                pushStack(PC);
-                PC = 0x40;
-                return 20;
-            } 
-            // LCD
-            else if(pending & 0x02) {
-                bus.write(0xFF0F, IF & 0xFD);
-                IME = false;
-                imeDelay = 0;
-                pushStack(PC);
-                PC = 0x48;
-                return 20;            
-            } 
-            // Timer
-            else if(pending & 0x04) {
-                bus.write(0xFF0F, IF & 0xFB);
-                IME = false;
-                imeDelay = 0;
-                pushStack(PC);
-                PC = 0x50; 
-                return 20;          
-            } 
-            // Serial
-            else if(pending & 0x08) {
-                bus.write(0xFF0F, IF & 0xF7);
-                IME = false;
-                imeDelay = 0;
-                pushStack(PC);
-                PC = 0x58; 
-                return 20;          
-            } 
-            // Joypad
-            else if(pending & 0x10) {
-                bus.write(0xFF0F, IF & 0xEF);
-                IME = false;
-                imeDelay = 0;
-                pushStack(PC);
-                PC = 0x60; 
-                return 20;          
-            } 
+            IME = false; 
+            imeDelay = 0;
+            pushStack(PC);
+
+            uint8_t interruptToService = 0;
+            if (pending & 0x01)      interruptToService = 0; // VBlank
+            else if (pending & 0x02) interruptToService = 1; // LCD
+            else if (pending & 0x04) interruptToService = 2; // Timer
+            else if (pending & 0x08) interruptToService = 3; // Serial
+            else if (pending & 0x10) interruptToService = 4; // Joypad
+
+            bus.write(0xFF0F, IF & ~(1 << interruptToService));
+            
+            PC = 0x40 + (interruptToService * 8);
+            
+            return 20;
         }
-
     }
-
-
 
     // This uses a for when step starts returning cycles
     if(isHalted)
