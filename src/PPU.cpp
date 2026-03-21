@@ -68,7 +68,7 @@ void PPU::write(uint16_t address,uint8_t data) {
             lcdc = data; 
             //Check if display is off
             if(!(lcdc & (1 << 7))) {
-                stat = 0;
+                stat &= 0xF8;
                 dotLineCounter = 0;
                 ly = 0;
             }
