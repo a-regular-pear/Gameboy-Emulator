@@ -36,6 +36,7 @@ private:
     uint8_t spriteInLine;
     uint8_t bgLineColorIds[160];
     Sprite sprites[10];
+    uint8_t windowCounter;
 
     bool lastSignal;
     bool frameReady;
@@ -46,6 +47,7 @@ private:
     void renderScanline();
     void findSprites();
     void renderSprites();
+    void renderWindow();
 public:
     PPU();
     

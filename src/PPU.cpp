@@ -15,6 +15,7 @@ PPU::PPU() :
     spriteInLine{0},
     bgLineColorIds{},
     sprites{}, 
+    windowCounter{},
     lastSignal{false},
     frameReady{false}
 {}
@@ -71,6 +72,7 @@ void PPU::write(uint16_t address,uint8_t data) {
                 stat &= 0xF8;
                 dotLineCounter = 0;
                 ly = 0;
+                windowCounter = 0;
             }
             break;
         }
@@ -116,6 +118,7 @@ void PPU::step(int cycles) {
             bus->requestInterrupt(0);
         } else if(ly > 153) {
             ly = 0;
+            windowCounter = 0;
         }
     }
 
@@ -210,6 +213,42 @@ void PPU::renderBackground() {
     }
 }
 
+void PPU::renderWindow() {
+
+    uint16_t mapBase = (lcdc & (1 << 6)) ? 0x1C00 : 0x1800;
+    uint16_t baseAdress = (lcdc & (1 << 4)) ? 0 : 0x1000;
+    uint16_t tileY = windowCounter >> 3;
+    uint8_t lineInTile = windowCounter & 0x07;
+
+    for(int x = 0; x < 160; x++) {
+        
+        if (x < (int)wx - 7) continue;
+
+        int windowX = x - (wx - 7);
+        uint16_t tileX = windowX >> 3;
+
+        uint16_t mapAddress = mapBase + (tileY << 5) + tileX;
+        uint8_t tileId = vram[mapAddress];
+
+        int16_t tileOffset = (lcdc & (1 <<4)) ? 
+            static_cast<uint16_t>(tileId) << 4 : 
+            static_cast<int16_t>(static_cast<int8_t>(tileId)) << 4;
+
+        uint16_t tileAddress = baseAdress + tileOffset + (lineInTile << 1);
+
+        uint8_t data1 = vram[tileAddress];
+        uint8_t data2 = vram[tileAddress + 1];
+
+        uint8_t bitPosition = 7 - ( windowX & 0x07); 
+        uint8_t high = (data2 >> bitPosition) & 0x01;
+        uint8_t low = (data1 >> bitPosition) & 0x01;
+        uint8_t colorId = (high << 1) | low;
+        Color color = mapIdToRGB565(colorId, bgp);
+        bgLineColorIds[x] = colorId;
+        frameBuffer[ly * 160 + x] = static_cast<uint16_t>(color);
+    }
+}
+
 void PPU::findSprites() {
     spriteInLine = 0;
     for(int i = 0; i <0xA0; i += 4) {
@@ -285,6 +324,8 @@ void PPU::renderSprites() {
 }
 
 void PPU::renderScanline() {
+
+    //Is the background visible
     if (lcdc & (1 << 0)) {
         renderBackground();
     } else {
@@ -294,6 +335,13 @@ void PPU::renderScanline() {
             frameBuffer[ly * 160 + x] = static_cast<uint16_t>(mapIdToRGB565(0, bgp));
         }
     }
+
+    //Is the window visible
+    if(lcdc & (1 << 5) && (ly >= wy)) {
+        renderWindow();
+        windowCounter++;
+    }
+
     renderSprites();
 
 
