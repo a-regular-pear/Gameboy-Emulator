@@ -3,33 +3,41 @@
 Display::Display() : tft(TFT_CS, TFT_DC, TFT_RST, TFT_MOSI, TFT_SCK, TFT_MISO) {}
 
 void Display::init() {
-    tft.begin();            
+    tft.begin(40000000);      
+    tft.useFrameBuffer(true); 
     tft.setRotation(1);     
     tft.fillScreen(0x09C1);
 }
 void Display::update(const uint16_t* frameBuffer) {
-    uint16_t lineBuffer[320];
-    
-    // Constants for the 266x240 centered image
+    // Access the internal frame buffer pointer
+   uint16_t* screen = tft.getFrameBuffer();
+
+
+    if (screen == nullptr) return; // Safety check
+
     const int targetW = 266;
     const int targetH = 240;
-    const int offsetX = (320 - targetW) / 2; // 27 pixels
+    const int offsetX = (320 - targetW) / 2;
 
-    // Fixed-point scale factors (16.16)
     uint32_t x_step = (160 << 16) / targetW;
     uint32_t y_step = (144 << 16) / targetH;
+ 
 
+    // Manual scaling into the RAM buffer
     for (int screenY = 0; screenY < targetH; screenY++) {
         uint32_t sourceY = (screenY * y_step) >> 16;
         const uint16_t* sourceRow = &frameBuffer[sourceY * 160];
         
+        // Calculate destination in the 320x240 screen buffer
+        uint16_t* destRow = &screen[screenY * 320 + offsetX];
+        
         uint32_t x_acc = 0;
         for (int screenX = 0; screenX < targetW; screenX++) {
-            lineBuffer[screenX] = sourceRow[x_acc >> 16];
+            destRow[screenX] = sourceRow[x_acc >> 16];
             x_acc += x_step;
         }
-
-        // Write the scaled line starting at the offset
-        tft.writeRect(offsetX, screenY, targetW, 1, lineBuffer);
     }
+
+    // Update the actual hardware
+    tft.updateScreenAsync(); 
 }

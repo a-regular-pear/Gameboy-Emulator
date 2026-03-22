@@ -94,14 +94,19 @@ void setup() {
 }
 
 void loop() {
-    // Execute one CPU instruction and synchronize the timer and PPU cycles
-    int cycles = cpu.step();
-    timer.step(cycles);
-    ppu.step(cycles);
-
+    uint32_t frameStart = micros();
+    // Execute CPU instructions and synchronize the timer and PPU cycles
+    while (!ppu.getFrameReady()) {
+        int cycles = cpu.step();
+        timer.step(cycles);
+        ppu.step(cycles);
+    }
     // Update the physical display when the PPU completes a full frame
-    if (ppu.getFrameReady()) {
-        display.update(ppu.getFrameBuffer()); 
-        ppu.setFrameReady(false);
+    display.update(ppu.getFrameBuffer()); 
+    ppu.setFrameReady(false);
+    
+    uint32_t frameTime = micros() - frameStart;
+    if(frameTime < 16742) {
+        delayMicroseconds(16742 - frameTime);
     }
 }
