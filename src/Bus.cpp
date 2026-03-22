@@ -1,7 +1,7 @@
 #include "Bus.h"
 #include "Timer.h"
 
-Bus::Bus(PPU& p, Cartridge* c, Timer& t) : wram{}, hram{}, ppu{p}, cartridge{c}, ie_register{}, io{}, timer{t} {}
+Bus::Bus(PPU& p, Cartridge* c, Timer& t, Joypad& j) : wram{}, hram{}, ppu{p}, cartridge{c}, ie_register{}, io{}, joypad{j}, timer{t} {}
 
 uint8_t Bus::read(uint16_t address) {
     //ROM
@@ -28,21 +28,24 @@ uint8_t Bus::read(uint16_t address) {
     else if(address >= 0xFE00 && address <= 0xFE9F) {
         return ppu.read(address);
     }
-    //I/O  except timer and ppu reg
-    else if((address >= 0xFF00 && address <= 0xFF03) || (address >= 0xFF0F && address <= 0xFF37) || ((address >= 0xFF4C && address <= 0xFF7F))) {
-        if (address == 0xFF00) return 0xFF; // Προσωρινό fix: Κανένα κουμπί πατημένο
-        if (address == 0xFF0F) {
-            return io[0x0F] | 0xE0; // The top 3 bits of IF always read as 1
-        }
-        return io[address - 0xFF00];
+    //Joypad
+    else if(address == 0xFF00) {
+        return joypad.getState();
     }
-    //PPU registers
+     //PPU registers
     else if(address >= 0xFF40 && address <= 0xFF4B) {
         return ppu.read(address);
     }
     //Timer
     else if(address >= 0xFF04 && address <= 0xFF07) {
         return timer.read(address);
+    }
+    //I/O  except timer and ppu reg and joypad
+    else if(address >= 0xFF00 && address <= 0xFF7F) {
+        if (address == 0xFF0F) {
+            return io[0x0F] | 0xE0; // The top 3 bits of IF always read as 1
+        }
+        return io[address - 0xFF00];
     }
     //HRAM
     else if(address >= 0xFF80 && address <= 0xFFFE) {
@@ -83,17 +86,24 @@ void Bus::write(uint16_t address, uint8_t data) {
     else if(address >= 0xFE00 && address <= 0xFE9F) {
         ppu.write(address,data);
     }
-    //I/O except timer and ppu reg
-    else if((address >= 0xFF00 && address <= 0xFF03) || (address >= 0xFF0F && address <= 0xFF37) || ((address >= 0xFF4C && address <= 0xFF7F))) {
-        io[address - 0xFF00] = data;
+    //Joypad
+    else if(address == 0xFF00) {
+        joypad.setSelector(data);
+        return;
     }
     //PPU registers
     else if(address >= 0xFF40 && address <= 0xFF4B) {
         ppu.write(address,data);
+        return;
     }
     //Timer
     else if(address >= 0xFF04 && address <= 0xFF07) {
         timer.write(address, data);
+        return;
+    }
+    //I/O except timer and ppu reg and joypad
+    else if(address >= 0xFF00 && address <= 0xFF7F) {
+        io[address - 0xFF00] = data;
     }
     //HRAM
     else if(address >= 0xFF80 && address <= 0xFFFE) {

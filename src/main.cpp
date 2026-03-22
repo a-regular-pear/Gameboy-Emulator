@@ -12,7 +12,8 @@
 PPU ppu;
 Cartridge cartridge;
 Timer timer;
-Bus bus(ppu, &cartridge, timer);
+Joypad joypad;
+Bus bus(ppu, &cartridge, timer, joypad);
 CPU cpu(bus);
 Display display;
 
@@ -33,8 +34,9 @@ void setup() {
     // Connect components to the memory bus
     ppu.setBus(&bus);
     timer.setBus(&bus);
-
+    
     display.init();
+    joypad.init();
 
     Serial.println("Initializing SD Card...");
     if (!SD.begin(BUILTIN_SDCARD)) {
@@ -95,11 +97,14 @@ void setup() {
 
 void loop() {
     uint32_t frameStart = micros();
+
+    joypad.checkInput();
     // Execute CPU instructions and synchronize the timer and PPU cycles
     while (!ppu.getFrameReady()) {
         int cycles = cpu.step();
         timer.step(cycles);
         ppu.step(cycles);
+
     }
     // Update the physical display when the PPU completes a full frame
     display.update(ppu.getFrameBuffer()); 
