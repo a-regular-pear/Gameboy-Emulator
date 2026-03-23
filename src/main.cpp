@@ -47,44 +47,40 @@ void setup() {
         }
     }
 
-    // Define the target ROM filename (case-sensitive)
     const char* romFilename = "Tetris.gb"; 
-    Serial.printf("Opening ROM file: %s\n", romFilename);
-    
+
+    // Open the file briefly to determine its actual size
     File file = SD.open(romFilename); 
     if (!file) {
         Serial.println("CRITICAL ERROR: Failed to find ROM file.");
         while (true) {
             digitalWrite(13, !digitalRead(13));
-            delay(500); // Slow blink: File not found on SD card
+            delay(500); 
         }
     }
 
-    size_t fileSize = file.size();
+size_t fileSize = file.size();
     Serial.printf("File opened. Size: %u bytes\n", fileSize);
 
-    Serial.println("Attempting memory allocation...");
-    
+    Serial.println("Attempting RAM allocation...");
     // Allocate memory with protection against hardware faults
     gameMemory = new (std::nothrow) uint8_t[fileSize];
 
-    if (gameMemory == nullptr) {
-        Serial.println("CRITICAL ERROR: OUT OF MEMORY!");
-        Serial.println("The RAM of Teensy cannot provide a contiguous block for this file size.");
+    bool loadSuccess = false;
+
+    // Try RAM first, fallback to Streaming
+    if (gameMemory != nullptr) {
+        Serial.println("Memory allocated. Loading full ROM into RAM...");
+        file.read(gameMemory, fileSize);
         file.close();
-        while (true) {
-            digitalWrite(13, !digitalRead(13));
-            delay(50); // Very fast blink: Out of Memory condition
-        }
+        loadSuccess = cartridge.load_rom(gameMemory, fileSize);
+    } else {
+        Serial.println("Out of memory for full load. Falling back to SD streaming...");
+        file.close(); // Close so Cartridge::load_rom can reopen it
+        loadSuccess = cartridge.load_rom(nullptr, fileSize, true, romFilename);
     }
 
-    Serial.println("Memory allocated. Reading data...");
-    file.read(gameMemory, fileSize);
-    file.close();
-
-    Serial.println("Loading ROM into Cartridge...");
-    // Call the hardware-agnostic ROM loading function
-    if (!cartridge.load_rom(gameMemory, fileSize)) {
+    if (!loadSuccess) {
         Serial.println("CRITICAL ERROR: Invalid ROM size or format.");
         while (true) {
             digitalWrite(13, HIGH); // Solid light: Invalid ROM size

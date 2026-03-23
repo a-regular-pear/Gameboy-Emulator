@@ -1,8 +1,27 @@
 #include "Cartridge.h"
 
-Cartridge::Cartridge() : romData{nullptr},romSize{}, romBank0{nullptr}, romBankn{nullptr}, eram{}, eramBankn{nullptr}, 
-                         hasRam{false}, ramEnabled{false}, hasBatery{false}, mbcMode{0}, 
-                         bankReg1{1}, bankReg2{0}, mbc{MBC::MBC0} {}
+Cartridge::Cartridge() : 
+    isStreaming{false},
+    romFile{},
+    romCache{},
+    accessCounter{0},
+    romData{nullptr},
+    romSize{0}, 
+    romBank0{nullptr}, 
+    romBankn{nullptr}, 
+    eram{}, 
+    eramBankn{nullptr}, 
+    hasRam{false}, 
+    ramEnabled{false}, 
+    hasBatery{false}, 
+    mbcMode{0}, 
+    bankReg1{1}, 
+    bankReg2{0}, 
+    mbc{MBC::MBC0},
+    lastOffset0{0xFFFFFFFF},
+    lastOffsetN{0xFFFFFFFF} 
+{}
+
 uint8_t Cartridge::read(uint16_t address) {
     //bank0
     if(address >= 0x0000 && address <= 0x3FFF) {
@@ -14,7 +33,7 @@ uint8_t Cartridge::read(uint16_t address) {
     }
     //ERAM
     else if (address >= 0xA000 && address <= 0xBFFF) {
-        if (hasRam && ramEnabled) 
+        if (hasRam && ramEnabled && !eram.empty()) 
             return eramBankn[address - 0xA000];
         return 0xFF;
     }
@@ -53,24 +72,57 @@ void Cartridge::write(uint16_t address, uint8_t data) {
 
 
 }
-bool Cartridge::load_rom(const uint8_t* data, size_t size) {
+bool Cartridge::load_rom(const uint8_t* data, size_t size, bool stream, const char* filename) {
     // A Gameboy rom must be 32 KiB or larger depending on mbc
     if(size < 0x8000) {
         return false;
     } 
     
-    romData = data;
     romSize = size;
 
-    // Initialize banks
-    romBank0 = romData;
-    romBankn = romData + 0x4000;
+    if(!stream) {
+        isStreaming = false;
+        romData = data;
+    } else if(filename != nullptr) {
+        isStreaming = true;
+        if (romFile) romFile.close();
+        romFile = SD.open(filename);
+        if (!romFile) return false;
+        romData = nullptr;
+    } else {
+        return false;
+    }
+
+    accessCounter = 0;
+    for(int i=0; i < MAX_CACHED_BANKS; i++) {
+        romCache[i].offset = 0xFFFFFFFF;
+        romCache[i].lastUsed = 0;
+    }
 
     // Reset mode
     mbcMode = 0;
 
     // MBC1
-    uint8_t mbcType = romData[0x147];
+    uint8_t mbcType;
+    uint8_t ramSizeCode;
+    if(isStreaming) {
+        uint8_t header[0x150]; 
+        romFile.seek(0);
+        romFile.read(header, 0x150);
+        mbcType = header[0x147];
+
+        ramSizeCode = header[0x149];
+        romBank0 = getCachedBank(0);
+        romBankn = getCachedBank(0x4000);
+    } else {
+        // Initialize banks
+        romBank0 = romData;
+        romBankn = romData + 0x4000;
+        mbcType = romData[0x147];
+
+        ramSizeCode = romData[0x149];
+
+    }
 
     switch (mbcType)
     {
@@ -88,7 +140,6 @@ bool Cartridge::load_rom(const uint8_t* data, size_t size) {
         break;
     }
 
-    uint8_t ramSizeCode = romData[0x149];
     uint32_t ramSize = 0;
     switch(ramSizeCode) {
         case 0x02: ramSize = 8192; break;    // 8KB
@@ -96,42 +147,69 @@ bool Cartridge::load_rom(const uint8_t* data, size_t size) {
         case 0x04: ramSize = 131072; break;  // 128KB
         // ...
     }
-    if (ramSize > 0) {
-        eram.resize(ramSize, 0xFF); 
+        if (ramSize > 0) {
+          eram.resize(ramSize, 0xFF); 
     }
+
+    
+    lastOffsetN = 0xFFFFFFFF;
+    lastOffset0 = 0xFFFFFFFF;
     bankReg1 = 1;
     bankReg2 = 0;
     updateOffsets();
     return true;
 }
+const uint8_t* Cartridge::getCachedBank(uint32_t offset) {
+    //Check if already in cache
+    for (int i = 0; i < MAX_CACHED_BANKS; i++) {
+        if (romCache[i].offset == offset) {
+            romCache[i].lastUsed = ++accessCounter;
+            return romCache[i].data;
+        }
+    }
+
+    //LRU: Find the least recently used slot
+    int lruIdx = 0;
+    for (int i = 1; i < MAX_CACHED_BANKS; i++) {
+        if (romCache[i].lastUsed < romCache[lruIdx].lastUsed) lruIdx = i;
+    }
+
+    romFile.seek(offset);
+    romFile.read(romCache[lruIdx].data, 0x4000);
+
+    romCache[lruIdx].offset = offset;
+    romCache[lruIdx].lastUsed = ++accessCounter;
+    return romCache[lruIdx].data;
+}
 
 void Cartridge::updateOffsets() {
     uint8_t fullRomBank = (bankReg2 << 5) | bankReg1;
-    // the multiplication with 0x4000 is because everybank is 16Kib
-    uint32_t romOffsetN = fullRomBank * 0x4000;
-    
-    if (romOffsetN < romSize) {
+    uint32_t romOffsetN = (fullRomBank % (romSize / 0x4000)) * 0x4000;
+
+    if (!isStreaming) {
         romBankn = romData + romOffsetN;
+    } else {
+        romBankn = getCachedBank(romOffsetN);
+        lastOffsetN = romOffsetN;
     }
 
-    // romBank0 is only affected in mode 1
-    if(mbcMode == 0) {
-        romBank0 = romData;
-    } else if (mbcMode == 1) {
-        uint32_t romOffset0 = (bankReg2 << 5) * 0x4000;
-        if (romOffset0 < romSize) {
-            romBank0 = romData + romOffset0;
-        }
+    uint32_t romOffset0 = 0;
+    if (mbcMode == 1) {
+        romOffset0 = ((bankReg2 << 5) % (romSize / 0x4000)) * 0x4000;
     }
 
-    if(hasRam && !eram.empty()) {
-        if (mbcMode == 0) {
-            eramBankn = eram.data();
-        } else if(mbcMode == 1) {
-            uint32_t ramOffset = bankReg2 * 0x2000;
-            if (ramOffset < eram.size()) {
-                eramBankn = eram.data() + ramOffset;
-            }
+    if (!isStreaming) {
+        romBank0 = romData + romOffset0;
+    } else {
+        romBank0 = getCachedBank(romOffset0);
+        lastOffset0 = romOffset0;
+    }
+
+    if (hasRam && !eram.empty()) {
+        uint32_t ramOffset = 0;
+        if (mbcMode == 1) {
+            ramOffset = (bankReg2 % (eram.size() / 0x2000)) * 0x2000;
         }
+        eramBankn = eram.data() + ramOffset;
     }
 }
