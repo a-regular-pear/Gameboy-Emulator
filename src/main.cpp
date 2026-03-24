@@ -59,7 +59,7 @@ void setup() {
         }
     }
 
-size_t fileSize = file.size();
+    size_t fileSize = file.size();
     Serial.printf("File opened. Size: %u bytes\n", fileSize);
 
     Serial.println("Attempting RAM allocation...");

@@ -33,8 +33,8 @@ private:
     bool ramEnabled;
     bool hasBatery;
     uint8_t mbcMode;
-    uint8_t bankReg1; // Holds the 5 bits written from 0x2000-0x3FFF
-    uint8_t bankReg2; // Holds the 2 bits written from 0x4000–0x5FFF
+    uint8_t bankReg1; 
+    uint8_t bankReg2; 
     MBC mbc;
     uint32_t lastOffset0;
     uint32_t lastOffsetN;

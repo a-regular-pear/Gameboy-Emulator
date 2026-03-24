@@ -25,10 +25,12 @@ Cartridge::Cartridge() :
 uint8_t Cartridge::read(uint16_t address) {
     //bank0
     if(address >= 0x0000 && address <= 0x3FFF) {
+        if (isStreaming) return getCachedBank(lastOffset0)[address];
         return romBank0[address];
     } 
     //bankn
     else if(address >= 0x4000 && address <= 0x7FFF) {
+        if (isStreaming) return getCachedBank(lastOffsetN)[address - 0x4000];
         return romBankn[address - 0x4000];
     }
     //ERAM
@@ -40,14 +42,15 @@ uint8_t Cartridge::read(uint16_t address) {
     return 0xFF; 
 }
 
-//Currently only MBC1 is supported 
+//Currently only MBC1 and 5 is supported 
 void Cartridge::write(uint16_t address, uint8_t data) {
+
+    if(mbc == MBC::MBC0)
+        return;
+
     if(mbc == MBC::MBC1) {
-        if(address >= 0x0000 && address <= 0x1FFF) {
-            if(data == 0x0A)
-                ramEnabled = true;
-            else 
-                ramEnabled = false;
+       if(address >= 0x0000 && address <= 0x1FFF) {
+            ramEnabled = ((data & 0x0F) == 0x0A);
         }
 
         if(address >= 0x2000 && address <= 0x3FFF) {
@@ -62,15 +65,31 @@ void Cartridge::write(uint16_t address, uint8_t data) {
         }
 
         if(address >= 0xA000 && address <= 0xBFFF) {
-            if(hasRam && ramEnabled) 
+            if(hasRam && ramEnabled && eramBankn) 
                 eramBankn[address - 0xA000] = data;
         }
+    } else if(mbc == MBC::MBC5) {
+        if(address >= 0x0000 && address <= 0x1FFF) {
+            ramEnabled = ((data & 0x0F) == 0x0A);
+        }
 
-        updateOffsets();
+        if(address >= 0x2000 && address <= 0x2FFF) {
+            bankReg1 = data;
+        } else if(address >= 0x3000 && address <= 0x3FFF) {
+            bankReg2 = data & 0x01;
+        }
 
+        if(address >= 0x4000 && address <= 0x5FFF) {
+            mbcMode = data & 0x0F;
+        }
+
+        if(address >= 0xA000 && address <= 0xBFFF) {
+            if(hasRam && ramEnabled && eramBankn) 
+                eramBankn[address - 0xA000] = data;
+        }
     }
 
-
+    updateOffsets();
 }
 bool Cartridge::load_rom(const uint8_t* data, size_t size, bool stream, const char* filename) {
     // A Gameboy rom must be 32 KiB or larger depending on mbc
@@ -126,6 +145,7 @@ bool Cartridge::load_rom(const uint8_t* data, size_t size, bool stream, const ch
 
     switch (mbcType)
     {
+    //MBC1 
     case 0x03:
         hasBatery = true;
         [[fallthrough]];
@@ -134,6 +154,20 @@ bool Cartridge::load_rom(const uint8_t* data, size_t size, bool stream, const ch
         [[fallthrough]];
     case 0x01:
         mbc = MBC::MBC1;
+        break;
+
+    //MBC5
+    case 0x1E: // MBC5 + RUMBLE + RAM + BATTERY
+    case 0x1B: // MBC5 + RAM + BATTERY
+        hasBatery = true;
+        [[fallthrough]];
+    case 0x1D: // MBC5 + RUMBLE + RAM
+    case 0x1A: // MBC5 + RAM
+        hasRam = true;
+        [[fallthrough]];
+    case 0x1C: // MBC5 + RUMBLE
+    case 0x19: // MBC5 (Plain)
+        mbc = MBC::MBC5;
         break;
     default:
         mbc = MBC::MBC0;
@@ -183,33 +217,90 @@ const uint8_t* Cartridge::getCachedBank(uint32_t offset) {
 }
 
 void Cartridge::updateOffsets() {
-    uint8_t fullRomBank = (bankReg2 << 5) | bankReg1;
-    uint32_t romOffsetN = (fullRomBank % (romSize / 0x4000)) * 0x4000;
-
-    if (!isStreaming) {
-        romBankn = romData + romOffsetN;
-    } else {
-        romBankn = getCachedBank(romOffsetN);
-        lastOffsetN = romOffsetN;
-    }
-
+    uint32_t romOffsetN = 0x4000;
+    uint32_t ramOffset = 0;
     uint32_t romOffset0 = 0;
-    if (mbcMode == 1) {
-        romOffset0 = ((bankReg2 << 5) % (romSize / 0x4000)) * 0x4000;
-    }
-
-    if (!isStreaming) {
-        romBank0 = romData + romOffset0;
-    } else {
-        romBank0 = getCachedBank(romOffset0);
-        lastOffset0 = romOffset0;
-    }
-
-    if (hasRam && !eram.empty()) {
-        uint32_t ramOffset = 0;
-        if (mbcMode == 1) {
-            ramOffset = (bankReg2 % (eram.size() / 0x2000)) * 0x2000;
+    switch (mbc)
+    {
+    case MBC::MBC0:
+    {
+        if (!isStreaming) {
+            romBank0 = romData;
+            romBankn = romData + 0x4000;
+        } else {
+            // Force lock to the first two banks
+            if (lastOffset0 != 0) {
+                romBank0 = getCachedBank(0);
+                lastOffset0 = 0;
+            }
+            if (lastOffsetN != 0x4000) {
+                romBankn = getCachedBank(0x4000);
+                lastOffsetN = 0x4000;
+            }
         }
-        eramBankn = eram.data() + ramOffset;
+        break;
     }
+    case MBC::MBC1:
+    {   
+        uint8_t fullRomBank = (bankReg2 << 5) | bankReg1;
+        romOffsetN = (fullRomBank % (romSize / 0x4000)) * 0x4000;
+
+        if (!isStreaming) {
+            romBankn = romData + romOffsetN;
+        } else if (romOffsetN != lastOffsetN){
+            romBankn = getCachedBank(romOffsetN);
+            lastOffsetN = romOffsetN;
+        }
+
+        if (mbcMode == 1) {
+            romOffset0 = ((bankReg2 << 5) % (romSize / 0x4000)) * 0x4000;
+        }
+
+        if (!isStreaming) {
+            romBank0 = romData + romOffset0;
+        } else if (romOffset0 != lastOffset0){
+            romBank0 = getCachedBank(romOffset0);
+            lastOffset0 = romOffset0;
+        }
+
+        if (hasRam && !eram.empty()) {
+            if (mbcMode == 1) {
+                ramOffset = (bankReg2 % (eram.size() / 0x2000)) * 0x2000;
+            }
+            eramBankn = eram.data() + ramOffset;
+        }
+        break;
+
+    } case MBC::MBC5:
+    {
+        uint16_t fullRomBank = (static_cast<uint16_t>(bankReg2 & 0x01) << 8) | bankReg1;
+        romOffsetN = (fullRomBank % (romSize / 0x4000)) * 0x4000;
+
+        if (!isStreaming) {
+            romBankn = romData + romOffsetN;
+            romBank0 = romData + romOffset0;
+        } else  {
+            if (romOffset0 != lastOffset0) {
+                romBank0 = getCachedBank(romOffset0);
+                lastOffset0 = romOffset0;
+            }
+            if (romOffsetN != lastOffsetN) {
+                romBankn = getCachedBank(romOffsetN);
+                lastOffsetN = romOffsetN;
+            }
+        }
+
+
+        if (hasRam && !eram.empty()) {
+            ramOffset = (mbcMode % (eram.size() / 0x2000)) * 0x2000;
+            eramBankn = eram.data() + ramOffset;
+        }
+        break;
+
+    }
+    default:
+        break;
+    }
+
+
 }
