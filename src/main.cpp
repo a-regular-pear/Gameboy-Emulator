@@ -92,6 +92,7 @@ void setup() {
 }
 
 void loop() {
+    static uint32_t rtcMicrosAccumulator = 0;
     uint32_t frameStart = micros();
 
     joypad.checkInput();
@@ -109,5 +110,12 @@ void loop() {
     uint32_t frameTime = micros() - frameStart;
     if(frameTime < 16742) {
         delayMicroseconds(16742 - frameTime);
+        frameTime = 16742;
+    }
+
+    rtcMicrosAccumulator += frameTime;
+    if (rtcMicrosAccumulator >= 1000000 && (cartridge.getMBC() == 3)) { // 1 million micros = 1 second
+        cartridge.addSeconds(1);
+        rtcMicrosAccumulator -= 1000000;
     }
 }

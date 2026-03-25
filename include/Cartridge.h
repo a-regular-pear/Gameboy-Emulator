@@ -39,6 +39,9 @@ private:
     uint32_t lastOffset0;
     uint32_t lastOffsetN;
     const uint8_t* getCachedBank(uint32_t offset);
+    uint8_t rtcRegs[5];
+    uint8_t rtcLatchedRegs[5];
+    uint8_t rtcLatchedValue;
 
     // Write changes only the bank registers
     void updateOffsets();
@@ -47,5 +50,7 @@ public:
     bool load_rom(const uint8_t* data, size_t size, bool stream = false, const char* filename = "");    
     uint8_t read(uint16_t address);
     void write(uint16_t address, uint8_t data);
+    void addSeconds(uint32_t seconds);
+    uint8_t getMBC() { return static_cast<uint8_t>(mbc); };
 };
 

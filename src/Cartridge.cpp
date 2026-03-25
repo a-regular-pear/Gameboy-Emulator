@@ -19,7 +19,10 @@ Cartridge::Cartridge() :
     bankReg2{0}, 
     mbc{MBC::MBC0},
     lastOffset0{0xFFFFFFFF},
-    lastOffsetN{0xFFFFFFFF} 
+    lastOffsetN{0xFFFFFFFF},
+    rtcRegs{},
+    rtcLatchedRegs{},
+    rtcLatchedValue{0xFF}
 {}
 
 uint8_t Cartridge::read(uint16_t address) {
@@ -35,7 +38,13 @@ uint8_t Cartridge::read(uint16_t address) {
     }
     //ERAM
     else if (address >= 0xA000 && address <= 0xBFFF) {
-        if (hasRam && ramEnabled && !eram.empty()) 
+        if(mbc == MBC::MBC3) {
+            if (ramEnabled) {
+                if(bankReg2 >= 0x08 && bankReg2 <= 0x0C)
+                    return rtcLatchedRegs[bankReg2 - 0x08];
+                else return eramBankn[address - 0xA000];
+            }
+        } else if (hasRam && ramEnabled && !eram.empty()) 
             return eramBankn[address - 0xA000];
         return 0xFF;
     }
@@ -67,6 +76,37 @@ void Cartridge::write(uint16_t address, uint8_t data) {
         if(address >= 0xA000 && address <= 0xBFFF) {
             if(hasRam && ramEnabled && eramBankn) 
                 eramBankn[address - 0xA000] = data;
+        }
+    } else if(mbc == MBC::MBC3) {
+       if(address >= 0x0000 && address <= 0x1FFF) {
+            ramEnabled = ((data & 0x0F) == 0x0A);
+        }
+
+        if(address >= 0x2000 && address <= 0x3FFF) {
+            bankReg1 = data & 0x7F;
+            if(bankReg1 == 0) bankReg1 = 1;
+        } else if(address >= 0x4000 && address <= 0x5FFF) {
+            bankReg2 = data & 0x0F;
+        }
+
+        if(address >= 0x6000 && address <= 0x7FFF) {
+            if (rtcLatchedValue == 0x00 && data == 0x01) {
+                    for(int i = 0; i < 5; i++) {
+                        rtcLatchedRegs[i] = rtcRegs[i];
+                    }
+            }
+            rtcLatchedValue = data;
+        }
+
+        if(address >= 0xA000 && address <= 0xBFFF) {
+            if(ramEnabled) {
+                if(bankReg2 <= 0x03) {
+                    if(hasRam && !eram.empty()) 
+                        eramBankn[address - 0xA000] = data;
+                } else if(bankReg2 >= 0x08 && bankReg2 <= 0x0C) {
+                    rtcRegs[bankReg2 - 0x08] = data;
+                }
+            }
         }
     } else if(mbc == MBC::MBC5) {
         if(address >= 0x0000 && address <= 0x1FFF) {
@@ -154,6 +194,19 @@ bool Cartridge::load_rom(const uint8_t* data, size_t size, bool stream, const ch
         [[fallthrough]];
     case 0x01:
         mbc = MBC::MBC1;
+        break;
+
+    // MBC3
+    case 0x13: // MBC3 + RAM + BATTERY
+    case 0x10: // MBC3 + TIMER + BATTERY
+    case 0x0F: // MBC3 + TIMER + BATTERY
+        hasBatery = true;
+        [[fallthrough]];
+    case 0x12: // MBC3 + RAM
+        hasRam = true;
+        [[fallthrough]];
+    case 0x11: // MBC3 (Plain)
+        mbc = MBC::MBC3;
         break;
 
     //MBC5
@@ -271,6 +324,34 @@ void Cartridge::updateOffsets() {
         }
         break;
 
+    } case MBC::MBC3: 
+    {
+        uint16_t fullRomBank = bankReg1;
+        romOffsetN = (fullRomBank % (romSize / 0x4000)) * 0x4000;
+
+        if (!isStreaming) {
+            romBankn = romData + romOffsetN;
+            romBank0 = romData + romOffset0;
+        } else  {
+            if (romOffset0 != lastOffset0) {
+                romBank0 = getCachedBank(romOffset0);
+                lastOffset0 = romOffset0;
+            }
+            if (romOffsetN != lastOffsetN) {
+                romBankn = getCachedBank(romOffsetN);
+                lastOffsetN = romOffsetN;
+            }
+        }
+
+
+        if (hasRam && !eram.empty()) {
+            if (bankReg2 <= 0x03) { // Only banks 0x00-0x03 map to actual RAM
+                ramOffset = (bankReg2 % (eram.size() / 0x2000)) * 0x2000;
+                eramBankn = eram.data() + ramOffset;
+            }
+        }
+        break;
+
     } case MBC::MBC5:
     {
         uint16_t fullRomBank = (static_cast<uint16_t>(bankReg2 & 0x01) << 8) | bankReg1;
@@ -303,4 +384,27 @@ void Cartridge::updateOffsets() {
     }
 
 
+}
+void Cartridge::addSeconds(uint32_t seconds) {
+    // Don't tick if the HALT bit is set (Bit 6 of Day High)
+    if (rtcRegs[4] & 0x40) return;
+
+    uint32_t s = rtcRegs[0] + seconds;
+    rtcRegs[0] = s % 60;
+    
+    uint32_t m = rtcRegs[1] + (s / 60);
+    rtcRegs[1] = m % 60;
+    
+    uint32_t h = rtcRegs[2] + (m / 60);
+    rtcRegs[2] = h % 24;
+    
+    // Day counter is 9 bits total (Day Low register + 1 bit in Day High)
+    uint16_t d = (rtcRegs[3] | ((rtcRegs[4] & 0x01) << 8)) + (h / 24);
+    uint16_t finalDays = d % 512; 
+    rtcRegs[3] = finalDays & 0xFF;
+    rtcRegs[4] = (rtcRegs[4] & 0xFE) | ((finalDays >> 8) & 0x01);
+
+    if (d > 511) {
+        rtcRegs[4] |= 0x80; // Carry bit remains set until manually cleared
+    }
 }
