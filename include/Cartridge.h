@@ -4,7 +4,6 @@
 #include <string>
 #include <SD.h>
 #include <TimeLib.h>
-#include <Arduino.h>
 
 #define MAX_CACHED_BANKS 15
 
