@@ -51,7 +51,7 @@ uint8_t Cartridge::read(uint16_t address) {
     return 0xFF; 
 }
 
-//Currently only MBC1 and 5 is supported 
+//Currently only MBC1, 3 and 5 are supported 
 void Cartridge::write(uint16_t address, uint8_t data) {
 
     if(mbc == MBC::MBC0)
