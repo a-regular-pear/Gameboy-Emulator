@@ -7,6 +7,7 @@
 #include "Bus.h"
 #include "CPU.h" 
 #include "Display.h"
+#include <TimeLib.h>
 
 // Hardware components
 PPU ppu;
@@ -20,11 +21,16 @@ Display display;
 // Global pointer for the ROM memory (Frontend ownership)
 uint8_t* gameMemory = nullptr;
 
+time_t getTeensy3Time() {
+    return Teensy3Clock.get();
+}
+
 void setup() {
+    setSyncProvider(getTeensy3Time);
+
     // Initialize the built-in LED for visual error indication
     pinMode(13, OUTPUT);
     digitalWrite(13, HIGH); 
-
     Serial.begin(115200);
     // Wait up to 3 seconds for the Serial Monitor to open
     while (!Serial && millis() < 3000); 
@@ -73,7 +79,7 @@ void setup() {
         Serial.println("Memory allocated. Loading full ROM into RAM...");
         file.read(gameMemory, fileSize);
         file.close();
-        loadSuccess = cartridge.load_rom(gameMemory, fileSize);
+        loadSuccess = cartridge.load_rom(gameMemory, fileSize, false, romFilename);
     } else {
         Serial.println("Out of memory for full load. Falling back to SD streaming...");
         file.close(); // Close so Cartridge::load_rom can reopen it
@@ -87,12 +93,19 @@ void setup() {
         }
     }
 
+    
     Serial.println("ROM LOADED SUCCESSFULLY.");
     digitalWrite(13, LOW); // Turn off LED: Successful boot sequence
 }
 
 void loop() {
+    static uint32_t lastSaveMillis = 0;
     static uint32_t rtcMicrosAccumulator = 0;
+    static uint32_t lastRtcTime = micros(); 
+
+    static uint32_t savePendingTime = 0;
+    static bool isSavePending = false;
+
     uint32_t frameStart = micros();
 
     joypad.checkInput();
@@ -113,9 +126,37 @@ void loop() {
         frameTime = 16742;
     }
 
-    rtcMicrosAccumulator += frameTime;
-    if (rtcMicrosAccumulator >= 1000000 && (cartridge.getMBC() == 3)) { // 1 million micros = 1 second
+    uint32_t nowMicros = micros();
+    uint32_t deltaRtc = nowMicros - lastRtcTime;
+    lastRtcTime = nowMicros;
+    
+    rtcMicrosAccumulator += deltaRtc;
+    while (rtcMicrosAccumulator >= 1000000 && (cartridge.getMBC() == 3)) {
         cartridge.addSeconds(1);
         rtcMicrosAccumulator -= 1000000;
+    }
+
+    if (cartridge.getForceSave()) {
+        isSavePending = true;
+        savePendingTime = millis();
+    }
+
+    // Execute the save if 500ms have passed since the last RAM disable
+    if (isSavePending && (millis() - savePendingTime > 500)) {
+        cartridge.saveToSD(); 
+        cartridge.setIsDirty(false);
+        lastSaveMillis = millis(); // Reset the 30-second autosave timer
+        isSavePending = false;
+        Serial.println("Hardware Save committed to SD.");
+    }
+
+
+    // Fallback 30-second autosave for games that leave RAM enabled
+    if (cartridge.gethasBattery() && cartridge.getIsDirty() && (millis() - lastSaveMillis > 30000)) {
+        cartridge.saveToSD(); 
+        cartridge.setIsDirty(false);
+        lastSaveMillis = millis();
+        isSavePending = false; // Cancel any pending hardware saves
+        Serial.println("Autosave complete.");
     }
 }

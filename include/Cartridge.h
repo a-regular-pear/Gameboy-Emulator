@@ -3,6 +3,9 @@
 #include <cstdint>
 #include <string>
 #include <SD.h>
+#include <TimeLib.h>
+#include <Arduino.h>
+
 #define MAX_CACHED_BANKS 15
 
 class Cartridge
@@ -31,7 +34,7 @@ private:
     uint8_t* eramBankn;
     bool hasRam;
     bool ramEnabled;
-    bool hasBatery;
+    bool hasBattery;
     uint8_t mbcMode;
     uint8_t bankReg1; 
     uint8_t bankReg2; 
@@ -45,12 +48,22 @@ private:
 
     // Write changes only the bank registers
     void updateOffsets();
+
+    std::string currentSaveName;
+    bool isDirty = false;
+    bool forceSave = false;
 public:
     Cartridge();
     bool load_rom(const uint8_t* data, size_t size, bool stream = false, const char* filename = "");    
     uint8_t read(uint16_t address);
     void write(uint16_t address, uint8_t data);
     void addSeconds(uint32_t seconds);
-    uint8_t getMBC() { return static_cast<uint8_t>(mbc); };
+    uint8_t getMBC() const { return static_cast<uint8_t>(mbc); };
+    bool getIsDirty() const { return isDirty; }
+    void setIsDirty(bool dirty) { isDirty = dirty; }
+    bool gethasBattery() const { return hasBattery; }
+    void saveToSD();
+    void loadFromSD();
+    bool getForceSave();
 };
 

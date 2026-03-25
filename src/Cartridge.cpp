@@ -13,7 +13,7 @@ Cartridge::Cartridge() :
     eramBankn{nullptr}, 
     hasRam{false}, 
     ramEnabled{false}, 
-    hasBatery{false}, 
+    hasBattery{false}, 
     mbcMode{0}, 
     bankReg1{1}, 
     bankReg2{0}, 
@@ -22,7 +22,8 @@ Cartridge::Cartridge() :
     lastOffsetN{0xFFFFFFFF},
     rtcRegs{},
     rtcLatchedRegs{},
-    rtcLatchedValue{0xFF}
+    rtcLatchedValue{0xFF},
+    isDirty{true}
 {}
 
 uint8_t Cartridge::read(uint16_t address) {
@@ -59,7 +60,13 @@ void Cartridge::write(uint16_t address, uint8_t data) {
 
     if(mbc == MBC::MBC1) {
        if(address >= 0x0000 && address <= 0x1FFF) {
-            ramEnabled = ((data & 0x0F) == 0x0A);
+            bool newRamEnabled = ((data & 0x0F) == 0x0A);
+
+            if (ramEnabled && !newRamEnabled && isDirty) {
+                forceSave = true;
+            }
+
+            ramEnabled = newRamEnabled;
         }
 
         if(address >= 0x2000 && address <= 0x3FFF) {
@@ -74,12 +81,22 @@ void Cartridge::write(uint16_t address, uint8_t data) {
         }
 
         if(address >= 0xA000 && address <= 0xBFFF) {
-            if(hasRam && ramEnabled && eramBankn) 
-                eramBankn[address - 0xA000] = data;
+            if(hasRam && ramEnabled && eramBankn) {
+                if (eramBankn[address - 0xA000] != data) {
+                    eramBankn[address - 0xA000] = data;
+                    isDirty = true;
+                }
+            }
         }
     } else if(mbc == MBC::MBC3) {
        if(address >= 0x0000 && address <= 0x1FFF) {
-            ramEnabled = ((data & 0x0F) == 0x0A);
+            bool newRamEnabled = ((data & 0x0F) == 0x0A);
+
+            if (ramEnabled && !newRamEnabled && isDirty) {
+                forceSave = true;
+            }
+            
+            ramEnabled = newRamEnabled;
         }
 
         if(address >= 0x2000 && address <= 0x3FFF) {
@@ -101,16 +118,29 @@ void Cartridge::write(uint16_t address, uint8_t data) {
         if(address >= 0xA000 && address <= 0xBFFF) {
             if(ramEnabled) {
                 if(bankReg2 <= 0x03) {
-                    if(hasRam && !eram.empty()) 
-                        eramBankn[address - 0xA000] = data;
+                    if(hasRam && !eram.empty()) {
+                        if (eramBankn[address - 0xA000] != data) {
+                            eramBankn[address - 0xA000] = data;
+                            isDirty = true;
+                        }
+                    }
                 } else if(bankReg2 >= 0x08 && bankReg2 <= 0x0C) {
-                    rtcRegs[bankReg2 - 0x08] = data;
+                    if (rtcRegs[bankReg2 - 0x08] != data) {
+                        rtcRegs[bankReg2 - 0x08] = data;
+                        isDirty = true;
+                    }
                 }
             }
         }
     } else if(mbc == MBC::MBC5) {
         if(address >= 0x0000 && address <= 0x1FFF) {
-            ramEnabled = ((data & 0x0F) == 0x0A);
+            bool newRamEnabled = ((data & 0x0F) == 0x0A);
+
+            if (ramEnabled && !newRamEnabled && isDirty) {
+                forceSave = true;
+            }
+            
+            ramEnabled = newRamEnabled;
         }
 
         if(address >= 0x2000 && address <= 0x2FFF) {
@@ -124,8 +154,12 @@ void Cartridge::write(uint16_t address, uint8_t data) {
         }
 
         if(address >= 0xA000 && address <= 0xBFFF) {
-            if(hasRam && ramEnabled && eramBankn) 
-                eramBankn[address - 0xA000] = data;
+            if(hasRam && ramEnabled && eramBankn) {
+                if (eramBankn[address - 0xA000] != data) {
+                    eramBankn[address - 0xA000] = data;
+                    isDirty = true;
+                }
+            }
         }
     }
 
@@ -187,7 +221,7 @@ bool Cartridge::load_rom(const uint8_t* data, size_t size, bool stream, const ch
     {
     //MBC1 
     case 0x03:
-        hasBatery = true;
+        hasBattery = true;
         [[fallthrough]];
     case 0x02:
         hasRam = true;
@@ -200,7 +234,7 @@ bool Cartridge::load_rom(const uint8_t* data, size_t size, bool stream, const ch
     case 0x13: // MBC3 + RAM + BATTERY
     case 0x10: // MBC3 + TIMER + BATTERY
     case 0x0F: // MBC3 + TIMER + BATTERY
-        hasBatery = true;
+        hasBattery = true;
         [[fallthrough]];
     case 0x12: // MBC3 + RAM
         hasRam = true;
@@ -212,7 +246,7 @@ bool Cartridge::load_rom(const uint8_t* data, size_t size, bool stream, const ch
     //MBC5
     case 0x1E: // MBC5 + RUMBLE + RAM + BATTERY
     case 0x1B: // MBC5 + RAM + BATTERY
-        hasBatery = true;
+        hasBattery = true;
         [[fallthrough]];
     case 0x1D: // MBC5 + RUMBLE + RAM
     case 0x1A: // MBC5 + RAM
@@ -229,10 +263,11 @@ bool Cartridge::load_rom(const uint8_t* data, size_t size, bool stream, const ch
 
     uint32_t ramSize = 0;
     switch(ramSizeCode) {
+        case 0x01: ramSize = 8192; break;    // 2KB mirrored to safely fill the 8KB address window
         case 0x02: ramSize = 8192; break;    // 8KB
         case 0x03: ramSize = 32768; break;   // 32KB
         case 0x04: ramSize = 131072; break;  // 128KB
-        // ...
+        case 0x05: ramSize = 65536; break;   // 64KB
     }
         if (ramSize > 0) {
           eram.resize(ramSize, 0xFF); 
@@ -244,6 +279,21 @@ bool Cartridge::load_rom(const uint8_t* data, size_t size, bool stream, const ch
     bankReg1 = 1;
     bankReg2 = 0;
     updateOffsets();
+
+    if (filename != nullptr && strlen(filename) > 0) {
+        std::string baseName = filename;
+        size_t lastDot = baseName.find_last_of(".");
+        if (lastDot != std::string::npos) {
+            currentSaveName = baseName.substr(0, lastDot) + ".sav";
+        } else {
+            currentSaveName = baseName + ".sav";
+        }
+    }
+
+    if (hasBattery && !currentSaveName.empty() && SD.exists(currentSaveName.c_str())) {
+        loadFromSD();
+    }
+
     return true;
 }
 const uint8_t* Cartridge::getCachedBank(uint32_t offset) {
@@ -295,7 +345,10 @@ void Cartridge::updateOffsets() {
     }
     case MBC::MBC1:
     {   
-        uint8_t fullRomBank = (bankReg2 << 5) | bankReg1;
+        uint8_t fullRomBank = bankReg1;
+        if (mbcMode == 0) {
+            fullRomBank |= (bankReg2 << 5);
+        }
         romOffsetN = (fullRomBank % (romSize / 0x4000)) * 0x4000;
 
         if (!isStreaming) {
@@ -317,9 +370,12 @@ void Cartridge::updateOffsets() {
         }
 
         if (hasRam && !eram.empty()) {
+            uint32_t numBanks = eram.size() / 0x2000;
+            uint32_t effectiveRamBank = 0;
             if (mbcMode == 1) {
-                ramOffset = (bankReg2 % (eram.size() / 0x2000)) * 0x2000;
+                effectiveRamBank = bankReg2 % numBanks;
             }
+            ramOffset = effectiveRamBank * 0x2000;
             eramBankn = eram.data() + ramOffset;
         }
         break;
@@ -342,7 +398,6 @@ void Cartridge::updateOffsets() {
                 lastOffsetN = romOffsetN;
             }
         }
-
 
         if (hasRam && !eram.empty()) {
             if (bankReg2 <= 0x03) { // Only banks 0x00-0x03 map to actual RAM
@@ -385,6 +440,7 @@ void Cartridge::updateOffsets() {
 
 
 }
+
 void Cartridge::addSeconds(uint32_t seconds) {
     // Don't tick if the HALT bit is set (Bit 6 of Day High)
     if (rtcRegs[4] & 0x40) return;
@@ -407,4 +463,65 @@ void Cartridge::addSeconds(uint32_t seconds) {
     if (d > 511) {
         rtcRegs[4] |= 0x80; // Carry bit remains set until manually cleared
     }
+}
+
+void Cartridge::saveToSD() {
+    if (currentSaveName.empty()) {
+        return;
+    }
+
+    SD.remove(currentSaveName.c_str());  // force delete
+
+    File file = SD.open(currentSaveName.c_str(), FILE_WRITE);    
+    if (!file) {
+        Serial.println("CRITICAL: SD.open failed! Is the card locked or removed?");
+        return;
+    }
+
+    if (!eram.empty()) {
+        file.write(eram.data(), eram.size());
+    }
+
+    if (mbc == MBC::MBC3) {
+        file.write(rtcRegs, 5);
+        uint32_t timestamp = now(); 
+        file.write((uint8_t*)&timestamp, 4);
+    }
+
+    file.flush(); 
+    file.close();
+
+   
+}
+void Cartridge::loadFromSD() {
+    File file = SD.open(currentSaveName.c_str(), FILE_READ);
+    if (!file) return;
+
+    // Load SRAM
+    if (!eram.empty()) {
+        file.read(eram.data(), eram.size());
+    }
+
+    // Load and Sync RTC
+    if (mbc == MBC::MBC3 && file.available() >= 9) {
+        file.read(rtcRegs, 5);
+        
+        uint32_t savedTimestamp;
+        file.read((uint8_t*)&savedTimestamp, 4);
+        
+        // Calculate the time gap
+        uint32_t currentTimestamp = now();
+        if (currentTimestamp > savedTimestamp) {
+            uint32_t elapsedSeconds = currentTimestamp - savedTimestamp;
+            addSeconds(elapsedSeconds); // Fast-forward the Game Boy clock
+        }
+    }
+    file.close();
+    updateOffsets();
+}
+
+bool Cartridge::getForceSave() { 
+    bool state = forceSave; 
+    forceSave = false; 
+    return state; 
 }
