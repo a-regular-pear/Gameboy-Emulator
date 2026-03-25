@@ -31,3 +31,7 @@ uint8_t Joypad::getState() const {
         if (!(selector & 0x20)) res &= ((state >> 4) & 0x0F);
         return 0xC0 | selector | res;
 }
+
+bool Joypad::isPressed(Button button) const {
+    return !(state & (1 << static_cast<int>(button)));
+}

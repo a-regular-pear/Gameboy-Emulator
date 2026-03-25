@@ -17,4 +17,5 @@ public:
     Display();
     void init();
     void update(const uint16_t* frameBuffer);
+    ILI9341_t3n& getTFT() { return tft; }
 }; 

@@ -7,8 +7,9 @@
 #include "Bus.h"
 #include "CPU.h" 
 #include "Display.h"
+#include "Joypad.h"
 #include <TimeLib.h>
-
+#include "RomLoader.h"
 // Hardware components
 PPU ppu;
 Cartridge cartridge;
@@ -52,9 +53,12 @@ void setup() {
             delay(100); // Fast blink: SD card initialization error
         }
     }
+    RomLoader loader(display, joypad);
+    String romName = loader.selectROM();
+    display.getTFT().fillScreen(0x09C1); // Clear menu text
+    const char* romFilename = romName.c_str(); 
 
-    const char* romFilename = "Tetris.gb"; 
-
+    
     // Open the file briefly to determine its actual size
     File file = SD.open(romFilename); 
     if (!file) {
