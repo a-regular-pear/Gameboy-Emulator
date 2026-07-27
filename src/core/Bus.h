@@ -1,9 +1,9 @@
 #pragma once
 #include <cstdint>
-#include "Cartridge.h"
+#include "ICartridge.h"
 #include "PPU.h"
 #include "Timer.h"
-#include "Joypad.h"
+#include "IJoypad.h"
 
 class Timer; // forward declaration
 
@@ -15,17 +15,17 @@ private:
     PPU& ppu;
 
     // cartridge is a pointer so it can be chnaged wthout need to recreate bus
-    Cartridge* cartridge;
+    ICartridge* cartridge;
     
     // Interrupt
     uint8_t ie_register;
 
     // temporary IO registers
     uint8_t io[0x80];
-    Joypad& joypad;
+    IJoypad& joypad;
     Timer& timer;
 public:
-    Bus(PPU& p, Cartridge* c,Timer& timer, Joypad& joypad);    
+    Bus(PPU& p, ICartridge* c,Timer& timer, IJoypad& joypad);    
     uint8_t read(uint16_t address);
     void write(uint16_t address, uint8_t data);
     // Enables specified IF bit (for example for interrupt 0 it turns on the LSB)

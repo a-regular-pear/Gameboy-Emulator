@@ -1,14 +1,14 @@
-#include "Display.h"
+#include "TeensyDisplay.h"
 
-Display::Display() : tft(TFT_CS, TFT_DC, TFT_RST, TFT_MOSI, TFT_SCK, TFT_MISO) {}
+TeensyDisplay::TeensyDisplay() : tft(TFT_CS, TFT_DC, TFT_RST, TFT_MOSI, TFT_SCK, TFT_MISO) {}
 
-void Display::init() {
+void TeensyDisplay::init() {
     tft.begin(40000000);      
     tft.useFrameBuffer(true); 
     tft.setRotation(1);     
     tft.fillScreen(0x09C1);
 }
-void Display::update(const uint16_t* frameBuffer) {
+void TeensyDisplay::update(const uint16_t* frameBuffer) {
     // Access the internal frame buffer pointer
    uint16_t* screen = tft.getFrameBuffer();
 

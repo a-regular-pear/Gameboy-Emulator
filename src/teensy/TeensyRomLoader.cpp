@@ -1,9 +1,11 @@
-#include "RomLoader.h"
+#include "TeensyRomLoader.h"
+#include "TeensyDisplay.h"
+#include "TeensyJoypad.h"
+#include <SD.h>
 
-RomLoader::RomLoader(Display& d, Joypad& j) : display(d), joypad(j) {}
+TeensyRomLoader::TeensyRomLoader(IDisplay& d, IJoypad& j) : IRomLoader(d, j) {}
 
-String RomLoader::selectROM() {
-    // Play the nostalgic boot animation first
+std::string TeensyRomLoader::selectROM() {
     bootAnimation();
 
     File root = SD.open("/");
@@ -26,7 +28,7 @@ String RomLoader::selectROM() {
     while (true) {
         joypad.checkInput();
         
-        if (joypad.isPressed(Joypad::Button::Up)) {
+        if (joypad.isPressed(IJoypad::Button::Up)) {
             if (selected > 0) {
                 selected--;
                 if (selected < scrollOffset) scrollOffset = selected;
@@ -34,7 +36,7 @@ String RomLoader::selectROM() {
             delay(150); 
         }
         
-        if (joypad.isPressed(Joypad::Button::Down)) {
+        if (joypad.isPressed(IJoypad::Button::Down)) {
             if (selected < count - 1) {
                 selected++;
                 if (selected >= scrollOffset + MAX_VISIBLE) scrollOffset++;
@@ -42,30 +44,27 @@ String RomLoader::selectROM() {
             delay(150);
         }
 
-        if (joypad.isPressed(Joypad::Button::A)) {
-            return files[selected];
+        if (joypad.isPressed(IJoypad::Button::A)) {
+            return std::string(files[selected].c_str());
         }
 
         draw(files, count, selected, scrollOffset);
     }
 }
 
-void RomLoader::bootAnimation() {
-    auto& tft = display.getTFT();
-    int logoY = -50; // Start off-screen
+void TeensyRomLoader::bootAnimation() {
+    auto& tft = static_cast<TeensyDisplay&>(display).getTFT();
+    int logoY = -50; 
     int targetY = 100;
 
-    // Standard GameBoy boot behavior: Logo scrolls down
     while (logoY < targetY) {
         tft.fillScreen((uint16_t)Color::black);
         
-        // Draw the "NINTENDO" replacement
         tft.setTextColor((uint16_t)Color::darkGray);
         tft.setTextSize(4);
         tft.setCursor(60, logoY);
-        tft.print("TEENSY"); // Or "TEENSY"
+        tft.print("TEENSY"); 
         
-        // Draw the register symbol (the little 'R')
         tft.setTextSize(1);
         tft.drawCircle(225, logoY + 5, 5, (uint16_t)Color::darkGray);
         tft.setCursor(223, logoY + 2);
@@ -76,22 +75,19 @@ void RomLoader::bootAnimation() {
         delay(10);
     }
 
-    // The "Bling" moment
     tft.setTextColor((uint16_t)Color::white);
     tft.setCursor(60, targetY);
     tft.setTextSize(4);
     tft.print("TEENSY");
     tft.updateScreen();
     
-    // Hold the logo for a second like the real hardware
     delay(1200);
 }
 
-void RomLoader::draw(const String files[], int count, int selected, int offset) {
-    auto& tft = display.getTFT();
+void TeensyRomLoader::draw(const String files[], int count, int selected, int offset) {
+    auto& tft = static_cast<TeensyDisplay&>(display).getTFT();
     tft.fillScreen((uint16_t)Color::black); 
 
-    // Header bar
     tft.fillRect(0, 0, 320, 35, (uint16_t)Color::darkGray);
     tft.setCursor(20, 10);
     tft.setTextColor((uint16_t)Color::white);
@@ -116,4 +112,3 @@ void RomLoader::draw(const String files[], int count, int selected, int offset) 
     }
     tft.updateScreen();
 }
-

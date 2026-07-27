@@ -1,22 +1,22 @@
 #pragma once
 #include <cstdint>
-#include <Arduino.h>
 
-class Joypad
+class IJoypad
 {
-
-private:
+protected:
     uint8_t state;
     uint8_t selector;
 
 public:
     enum class Button : uint8_t {Right = 0, Left = 1, Up = 2, Down = 3, B = 4, A = 5, Select = 6, Start = 7};
 
-    Joypad();
-    void init();
-    void checkInput();
+    IJoypad();
+    virtual ~IJoypad() = default;
+
+    virtual void init() = 0;
+    virtual void checkInput() = 0;
+
     void setSelector(uint8_t data);
     uint8_t getState() const;
-    bool isPressed(Button button) const ;
+    bool isPressed(Button button) const;
 };
-

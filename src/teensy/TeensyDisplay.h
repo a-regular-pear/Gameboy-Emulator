@@ -1,8 +1,8 @@
 #pragma once
-
+#include "IDisplay.h"
 #include <ILI9341_t3n.h>
 
-class Display 
+class TeensyDisplay : public IDisplay
 {
 private:
     ILI9341_t3n tft;
@@ -14,8 +14,8 @@ private:
     static constexpr uint8_t TFT_MISO = 12;
 
 public:
-    Display();
-    void init();
-    void update(const uint16_t* frameBuffer);
+    TeensyDisplay();
+    void init() override;
+    void update(const uint16_t* frameBuffer) override;
     ILI9341_t3n& getTFT() { return tft; }
-}; 
+};
