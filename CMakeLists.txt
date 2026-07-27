@@ -11,14 +11,13 @@ file(GLOB CORE_SOURCES "src/core/*.cpp")
 # Gather PC-specific files
 file(GLOB PC_SOURCES "src/pc/*.cpp")
 
-# Based on your file tree, the abstract interfaces (ICartridge.cpp, IJoypad.cpp) 
-# reside in the teensy directory. They must be compiled for the PC build to prevent linker errors.
+# Abstract interfaces implementation files
 set(INTERFACE_SOURCES 
     "src/ICartridge.cpp"
     "src/IJoypad.cpp"
 )
 
-# Create the executable (adding src/main.cpp which was missing)
+# Create the executable
 add_executable(emulator 
     src/main.cpp
     ${CORE_SOURCES} 
@@ -26,8 +25,7 @@ add_executable(emulator
     ${INTERFACE_SOURCES}
 )
 
-# Replace include_directories(include) with the actual paths used in your project.
-# target_include_directories is preferred in modern CMake.
+# Include directories configuration
 target_include_directories(emulator PRIVATE 
     src/core
     src/pc
@@ -35,7 +33,14 @@ target_include_directories(emulator PRIVATE
     include
 )
 
-# Find and link required PC libraries (SDL2)
+# Find SDL2 using its package configuration
 find_package(SDL2 REQUIRED)
 target_include_directories(emulator PRIVATE ${SDL2_INCLUDE_DIRS})
 target_link_libraries(emulator PRIVATE ${SDL2_LIBRARIES})
+
+# Find SDL2_ttf using pkg-config since CMake lacks a native finder module for it in this version
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(SDL2_ttf REQUIRED SDL2_ttf)
+
+target_include_directories(emulator PRIVATE ${SDL2_ttf_INCLUDE_DIRS})
+target_link_libraries(emulator PRIVATE ${SDL2_ttf_LIBRARIES})
