@@ -1,6 +1,5 @@
 #include "PCRomLoader.h"
-#include "PCDisplay.h"
-#include "IJoypad.h"
+
 #include <filesystem>
 #include <thread>
 #include <chrono>
@@ -8,7 +7,6 @@
 
 namespace fs = std::filesystem;
 
-// Πρέπει να ταιριάζουν με τα ίδια GB_WIDTH/GB_HEIGHT που χρησιμοποιεί το PCDisplay
 constexpr int GB_WIDTH  = 160;
 constexpr int GB_HEIGHT = 144;
 
@@ -21,8 +19,7 @@ static const uint16_t COLOR_WHITE     = rgb565(255, 255, 255);
 static const uint16_t COLOR_DARKGRAY  = rgb565(80, 80, 80);
 static const uint16_t COLOR_LIGHTGRAY = rgb565(200, 200, 200);
 
-// Πολύ μικρή 3x5 bitmap font. Καλύπτει A-Z, 0-9, ".", "-", "_", ">", " ".
-// Κάθε char = 5 bytes, κάθε byte = 1 γραμμή, τα 3 LSB είναι τα pixels (bit2..bit0).
+
 static uint8_t getFontRow(char c, int row) {
     c = toupper(c);
     static const uint8_t A[5] = {0b010,0b101,0b111,0b101,0b101};
@@ -122,7 +119,7 @@ void PCRomLoader::drawText(int x, int y, const std::string& text, uint16_t color
     int cx = x;
     for (char c : text) {
         drawChar(cx, y, c, color);
-        cx += 4; // 3px char + 1px κενό
+        cx += 4; // 3px char + 1px 
     }
 }
 
@@ -142,51 +139,35 @@ std::string PCRomLoader::selectROM()
 
     int selected = 0;
     int scrollOffset = 0;
-    
-    // Αρχικοποίηση χρονομετρητή για το debounce του πληκτρολογίου
-    auto lastInputTime = std::chrono::steady_clock::now();
 
     while (true) {
-        // Λύση 1: Ασφαλές casting για πρόσβαση στη processEvents
-        auto* pcDisplay = dynamic_cast<PCDisplay*>(&display);
-        if (pcDisplay && !pcDisplay->processEvents()) {
-            return ""; 
-        }
-
+        if (!display.processEvents()) return ""; 
         joypad.checkInput();
 
-        // Λύση 3: Χρήση χρονομετρητή αντί για sleep_for (150ms cooldown)
-        auto now = std::chrono::steady_clock::now();
-        bool inputAllowed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastInputTime).count() > 150;
-
-        if (inputAllowed) {
-            if (joypad.isPressed(IJoypad::Button::Up)) {
-                if (selected > 0) {
-                    selected--;
-                    if (selected < scrollOffset) scrollOffset = selected;
-                }
-                lastInputTime = now;
+        if (joypad.isPressed(IJoypad::Button::Up)) {
+            if (selected > 0) {
+                selected--;
+                if (selected < scrollOffset) scrollOffset = selected;
             }
+            std::this_thread::sleep_for(std::chrono::milliseconds(150));
+        }
 
-            if (joypad.isPressed(IJoypad::Button::Down)) {
-                if (selected < static_cast<int>(files.size()) - 1) {
-                    selected++;
-                    if (selected >= scrollOffset + MAX_VISIBLE) scrollOffset++;
-                }
-                lastInputTime = now;
+        if (joypad.isPressed(IJoypad::Button::Down)) {
+            if (selected < static_cast<int>(files.size()) - 1) {
+                selected++;
+                if (selected >= scrollOffset + MAX_VISIBLE) scrollOffset++;
             }
+            std::this_thread::sleep_for(std::chrono::milliseconds(150));
+        }
 
-            if (joypad.isPressed(IJoypad::Button::A)) {
-                // Λύση 2: Έλεγχος αν η λίστα είναι άδεια πριν την επιλογή
-                if (!files.empty()) {
-                    return files[selected];
-                }
-            }
+        if (joypad.isPressed(IJoypad::Button::A)) {
+            return files[selected];
         }
 
         draw(files, selected, scrollOffset);
     }
 }
+
 void PCRomLoader::bootAnimation()
 {
     int logoY = -20;
