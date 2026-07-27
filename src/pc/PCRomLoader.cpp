@@ -1,5 +1,6 @@
 #include "PCRomLoader.h"
-
+#include "PCDisplay.h"
+#include "IJoypad.h"
 #include <filesystem>
 #include <thread>
 #include <chrono>
@@ -119,7 +120,7 @@ void PCRomLoader::drawText(int x, int y, const std::string& text, uint16_t color
     int cx = x;
     for (char c : text) {
         drawChar(cx, y, c, color);
-        cx += 4; // 3px char + 1px 
+        cx += 4; // 3px char + 1px κενό
     }
 }
 
@@ -139,35 +140,49 @@ std::string PCRomLoader::selectROM()
 
     int selected = 0;
     int scrollOffset = 0;
+    
+    // Αρχικοποίηση χρονομετρητή για το debounce του πληκτρολογίου
+    auto lastInputTime = std::chrono::steady_clock::now();
 
     while (true) {
-        if (!display.processEvents()) return ""; 
+        // Λύση 1: Ασφαλές casting για πρόσβαση στη processEvents
+        auto* pcDisplay = dynamic_cast<PCDisplay*>(&display);
+        if (pcDisplay && !pcDisplay->processEvents()) {
+            return ""; 
+        }
+
         joypad.checkInput();
 
-        if (joypad.isPressed(IJoypad::Button::Up)) {
-            if (selected > 0) {
-                selected--;
-                if (selected < scrollOffset) scrollOffset = selected;
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(150));
-        }
+        auto now = std::chrono::steady_clock::now();
+        bool inputAllowed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastInputTime).count() > 150;
 
-        if (joypad.isPressed(IJoypad::Button::Down)) {
-            if (selected < static_cast<int>(files.size()) - 1) {
-                selected++;
-                if (selected >= scrollOffset + MAX_VISIBLE) scrollOffset++;
+        if (inputAllowed) {
+            if (joypad.isPressed(IJoypad::Button::Up)) {
+                if (selected > 0) {
+                    selected--;
+                    if (selected < scrollOffset) scrollOffset = selected;
+                }
+                lastInputTime = now;
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(150));
-        }
 
-        if (joypad.isPressed(IJoypad::Button::A)) {
-            return files[selected];
+            if (joypad.isPressed(IJoypad::Button::Down)) {
+                if (selected < static_cast<int>(files.size()) - 1) {
+                    selected++;
+                    if (selected >= scrollOffset + MAX_VISIBLE) scrollOffset++;
+                }
+                lastInputTime = now;
+            }
+
+            if (joypad.isPressed(IJoypad::Button::A)) {
+                if (!files.empty()) {
+                    return files[selected];
+                }
+            }
         }
 
         draw(files, selected, scrollOffset);
     }
 }
-
 void PCRomLoader::bootAnimation()
 {
     int logoY = -20;
