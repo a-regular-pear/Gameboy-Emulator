@@ -4,6 +4,7 @@
 #include "PPU.h"
 #include "Timer.h"
 #include "IJoypad.h"
+#include "APU.h"
 
 class Timer; // forward declaration
 
@@ -24,8 +25,9 @@ private:
     uint8_t io[0x80];
     IJoypad& joypad;
     Timer& timer;
+    APU& apu;
 public:
-    Bus(PPU& p, ICartridge* c,Timer& timer, IJoypad& joypad);    
+    Bus(PPU& p, ICartridge* c,Timer& timer, IJoypad& joypad, APU& apu);    
     uint8_t read(uint16_t address);
     void write(uint16_t address, uint8_t data);
     // Enables specified IF bit (for example for interrupt 0 it turns on the LSB)

@@ -37,10 +37,3 @@ target_include_directories(emulator PRIVATE
 find_package(SDL2 REQUIRED)
 target_include_directories(emulator PRIVATE ${SDL2_INCLUDE_DIRS})
 target_link_libraries(emulator PRIVATE ${SDL2_LIBRARIES})
-
-# Find SDL2_ttf using pkg-config since CMake lacks a native finder module for it in this version
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(SDL2_ttf REQUIRED SDL2_ttf)
-
-target_include_directories(emulator PRIVATE ${SDL2_ttf_INCLUDE_DIRS})
-target_link_libraries(emulator PRIVATE ${SDL2_ttf_LIBRARIES})

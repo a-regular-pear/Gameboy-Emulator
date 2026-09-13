@@ -35,13 +35,14 @@
 #include "Bus.h"
 #include "CPU.h"
 #include "Timer.h"
-
+#include "APU.h"
 // Hardware components
 PPU ppu;
 PlatformCartridge cartridge;
 Timer timer;
 PlatformJoypad joypad;
-Bus bus(ppu, &cartridge, timer, joypad);
+APU apu;
+Bus bus(ppu, &cartridge, timer, joypad, apu);
 CPU cpu(bus);
 PlatformDisplay display;
 

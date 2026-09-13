@@ -120,7 +120,7 @@ void PCRomLoader::drawText(int x, int y, const std::string& text, uint16_t color
     int cx = x;
     for (char c : text) {
         drawChar(cx, y, c, color);
-        cx += 4; // 3px char + 1px κενό
+        cx += 4; // 3px char + 1px
     }
 }
 
@@ -141,11 +141,9 @@ std::string PCRomLoader::selectROM()
     int selected = 0;
     int scrollOffset = 0;
     
-    // Αρχικοποίηση χρονομετρητή για το debounce του πληκτρολογίου
     auto lastInputTime = std::chrono::steady_clock::now();
 
     while (true) {
-        // Λύση 1: Ασφαλές casting για πρόσβαση στη processEvents
         auto* pcDisplay = dynamic_cast<PCDisplay*>(&display);
         if (pcDisplay && !pcDisplay->processEvents()) {
             return ""; 

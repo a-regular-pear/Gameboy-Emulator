@@ -1,7 +1,7 @@
 #include "Bus.h"
 #include "Timer.h"
 
-Bus::Bus(PPU& p, ICartridge* c, Timer& t, IJoypad& j) : wram{}, hram{}, ppu{p}, cartridge{c}, ie_register{}, io{}, joypad{j}, timer{t} {}
+Bus::Bus(PPU& p, ICartridge* c, Timer& t, IJoypad& j, APU& a) : wram{}, hram{}, ppu{p}, cartridge{c}, ie_register{}, io{}, joypad{j}, timer{t}, apu{a} {}
 
 uint8_t Bus::read(uint16_t address) {
     //ROM
