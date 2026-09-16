@@ -4,12 +4,11 @@
 #include <SDL.h>
 #include <atomic>
 
-class PCAudio : public IAudio
+class TeensyAudio : public IAudio
 {
 private:
-    // Power of 2 capacity larger than the SDL callback size (e.g., 8192 samples = 4096 stereo frames)
-    static constexpr int BUFFER_CAPACITY = 8192; 
-    static constexpr int BUFFER_MASK = BUFFER_CAPACITY - 1;
+    // 1024 samples * 2 channels = 2048 integers
+    static constexpr int BUFFER_CAPACITY = 2048; 
     
     int16_t ring_buffer[BUFFER_CAPACITY];
     std::atomic<int> write_index{0};
@@ -17,11 +16,9 @@ private:
 
     SDL_AudioDeviceID device_id = 0;
     static void audioCallback(void* userdata, uint8_t* stream, int len);
-
 public:
-    PCAudio();
-    ~PCAudio() override;
+    TeensyAudio(); // Constructor handles SDL initialization
+    ~TeensyAudio() override; // Destructor handles SDL cleanup
 
     void pushSample(int16_t left, int16_t right) override;
-    uint32_t getSampleRate() const override;
 };

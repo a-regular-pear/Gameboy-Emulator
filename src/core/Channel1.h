@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-class Channel2
+class Channel1
 {
 private:
 
@@ -29,6 +29,16 @@ private:
     uint8_t sequence_pointer = 0;
     uint8_t current_output = 0; 
     uint8_t current_volume = 0;
+
+    // NR10 Pitch Sweep variables
+    uint8_t pitch_sweep_pace = 0;
+    uint8_t pitch_sweep_direction = 0;
+    uint8_t pitch_sweep_step = 0;
+    uint16_t shadow_period = 0;
+    uint8_t sweep_timer = 0;
+    bool sweep_enabled = false;
+
+    void calculate_sweep_period();
 public:
     uint8_t read(uint16_t address) const;
     void write(uint16_t address, uint8_t value);
@@ -36,6 +46,7 @@ public:
 
     void clock_length();
     void clock_envelope();
+    void clock_sweep();
     float get_analog_output() const;
     bool is_active() const;
 };

@@ -6,4 +6,5 @@ class IAudio
 public:
     virtual ~IAudio() = default;
     virtual void pushSample(int16_t left, int16_t right) = 0;
+    virtual uint32_t getSampleRate() const = 0;
 };

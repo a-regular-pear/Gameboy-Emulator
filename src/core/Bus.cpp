@@ -40,6 +40,10 @@ uint8_t Bus::read(uint16_t address) {
     else if(address >= 0xFF04 && address <= 0xFF07) {
         return timer.read(address);
     }
+    //APU
+    else if (address >= 0xFF10 && address <= 0xFF3F) {
+        return apu.read_register(address);
+    }
     //I/O  except timer and ppu reg and joypad
     else if(address >= 0xFF00 && address <= 0xFF7F) {
         if (address == 0xFF0F) {
@@ -99,6 +103,11 @@ void Bus::write(uint16_t address, uint8_t data) {
     //Timer
     else if(address >= 0xFF04 && address <= 0xFF07) {
         timer.write(address, data);
+        return;
+    }
+    //APU
+    else if (address >= 0xFF10 && address <= 0xFF3F) {
+        apu.write_register(address, data);
         return;
     }
     //I/O except timer and ppu reg and joypad

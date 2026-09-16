@@ -7,11 +7,13 @@
     #include "TeensyDisplay.h"
     #include "TeensyJoypad.h"
     #include "TeensyRomLoader.h"
-    
+    #include "TeensyAudio.h"
+
     using PlatformCartridge = TeensyCartridge;
     using PlatformDisplay = TeensyDisplay;
     using PlatformJoypad = TeensyJoypad;
     using PlatformRomLoader = TeensyRomLoader;
+    using PlatformAudio = TeensyAudio;
 #else
     #include <iostream>
     #include <fstream>
@@ -23,11 +25,13 @@
     #include "PCDisplay.h"
     #include "PCJoypad.h"
     #include "PCRomLoader.h"
+    #include "PCAudio.h"
     
     using PlatformCartridge = PCCartridge;
     using PlatformDisplay = PCDisplay;
     using PlatformJoypad = PCJoypad;
     using PlatformRomLoader = PCRomLoader;
+    using PlatformAudio = PCAudio;
 #endif
 
 #include <new> // Required for std::nothrow memory allocation
@@ -45,6 +49,7 @@ APU apu;
 Bus bus(ppu, &cartridge, timer, joypad, apu);
 CPU cpu(bus);
 PlatformDisplay display;
+PlatformAudio audio;
 
 // Global pointer for the ROM memory (Frontend ownership)
 uint8_t* gameMemory = nullptr;
@@ -101,6 +106,7 @@ void setup() {
     
     display.init();
     joypad.init();
+    apu.set_audio_backend(&audio);
 
 #if defined(ARDUINO)
     PRINTLN("Initializing SD Card...");
@@ -204,6 +210,8 @@ void loop() {
         int cycles = cpu.step();
         timer.step(cycles);
         ppu.step(cycles);
+        uint8_t current_div = bus.read(0xFF04);
+        apu.step(cycles,current_div);
     }
 
     display.update(ppu.getFrameBuffer()); 
