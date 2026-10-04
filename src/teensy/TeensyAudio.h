@@ -1,24 +1,10 @@
-#pragma once
 #include "IAudio.h"
-#include <vector>
-#include <SDL.h>
-#include <atomic>
 
-class TeensyAudio : public IAudio
-{
-private:
-    // 1024 samples * 2 channels = 2048 integers
-    static constexpr int BUFFER_CAPACITY = 2048; 
-    
-    int16_t ring_buffer[BUFFER_CAPACITY];
-    std::atomic<int> write_index{0};
-    std::atomic<int> read_index{0};
-
-    SDL_AudioDeviceID device_id = 0;
-    static void audioCallback(void* userdata, uint8_t* stream, int len);
+class TeensyAudio : public IAudio {
 public:
-    TeensyAudio(); // Constructor handles SDL initialization
-    ~TeensyAudio() override; // Destructor handles SDL cleanup
+    TeensyAudio() = default;
+    ~TeensyAudio() = default;
 
+    uint32_t getSampleRate() const override;
     void pushSample(int16_t left, int16_t right) override;
 };

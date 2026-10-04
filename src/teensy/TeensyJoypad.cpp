@@ -1,9 +1,10 @@
 #include "TeensyJoypad.h"
 
 void TeensyJoypad::init() {
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 7; i++) {
         pinMode(i, INPUT_PULLUP);
     }
+    pinMode(33, INPUT_PULLUP);
 }
 
 void TeensyJoypad::checkInput() {
@@ -15,6 +16,6 @@ void TeensyJoypad::checkInput() {
     if (digitalRead(static_cast<int>(Button::B)) == LOW) newState &= ~(1 << static_cast<int>(Button::B)); 
     if (digitalRead(static_cast<int>(Button::A)) == LOW) newState &= ~(1 << static_cast<int>(Button::A)); 
     if (digitalRead(static_cast<int>(Button::Select)) == LOW) newState &= ~(1 << static_cast<int>(Button::Select)); 
-    if (digitalRead(static_cast<int>(Button::Start)) == LOW) newState &= ~(1 << static_cast<int>(Button::Start)); 
+    if (digitalRead(33) == LOW) newState &= ~(1 << static_cast<int>(Button::Start)); 
     state = newState;
 }
