@@ -8,6 +8,7 @@ A Gameboy emulator for the Teensy 4.1 microcontroller and PC (Windows and Linux)
 * Support for Memory Bank Controllers: MBC0, MBC1, MBC3, and MBC5.
 * Native support for Teensy 4.1, Windows, and Linux.
 * Runs on the Teensy 4.1 using internal memory (does not require external PSRAM to work).
+* APU supports Channel 1 and Channel 2 on PC
 
 ## TODO
 
