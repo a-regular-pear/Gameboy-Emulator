@@ -1,0 +1,6 @@
+[submodule "hardware/libs/footprints/teensy.pretty"]
+	path = hardware/libs/footprints/teensy.pretty
+	url = https://github.com/XenGi/teensy.pretty
+[submodule "hardware/libs/symbols/teensy"]
+	path = hardware/libs/symbols/teensy
+	url = https://github.com/XenGi/teensy_library

@@ -1,0 +1,5 @@
+(sym_lib_table
+	(version 7)
+	(lib (name "1_ILI9341") (type "KiCad") (uri "${KIPRJMOD}/libs/symbols/1_ILI9341.kicad_sym") (options "") (descr ""))
+	(lib (name "teensy") (type "KiCad") (uri "${KIPRJMOD}/libs/symbols/teensy/teensy.kicad_sym") (options "") (descr ""))
+)
